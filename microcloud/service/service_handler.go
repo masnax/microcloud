@@ -2,12 +2,14 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
 	"github.com/hashicorp/mdns"
 	"github.com/lxc/lxd/shared/logger"
 
+	"github.com/canonical/microcloud/microcloud/db"
 	cloudMDNS "github.com/canonical/microcloud/microcloud/mdns"
 	"github.com/canonical/microcluster/state"
 )
@@ -154,5 +156,18 @@ func (s *ServiceHandler) Bootstrap(state *state.State) error {
 		return fmt.Errorf("Failed to shut down %q server: %w", cloudMDNS.ClusterService, err)
 	}
 
+	err = state.Database.Transaction(state.Context, func(ctx context.Context, tx *sql.Tx) error {
+		for _, service := range s.Services {
+			_, err := db.CreateService(ctx, tx, db.Service{Name: db.ServiceType(service.Type()), StateDir: service.StateDir()})
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("Failed to store state directory information: %w", err)
+	}
 	return nil
 }
