@@ -44,7 +44,7 @@ update-gomod:
 .PHONY: update-schema
 update-schema:
 	go generate ./...
-	gofmt -s -w ./database/
-	goimports -w ./database/
+	gofmt -s -w ./db/
+	goimports -w ./db/
 	@echo "Code generation completed"
 
