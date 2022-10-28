@@ -67,12 +67,12 @@ func (c *cmdDaemon) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ceph, err := service.NewCephService(context.Background(), name, addr, c.flagMicroCephDir, c.global.flagLogVerbose, c.global.flagLogDebug)
+	ceph, err := service.NewCephService(context.Background(), name, addr, c.flagMicroCloudDir, c.flagMicroCephDir)
 	if err != nil {
 		return err
 	}
 
-	lxd, err := service.NewLXDService(name, addr, c.flagLXDDir)
+	lxd, err := service.NewLXDService(context.Background(), name, addr, c.flagMicroCloudDir, c.flagLXDDir)
 	if err != nil {
 		return err
 	}
