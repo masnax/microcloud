@@ -10,6 +10,7 @@ import (
 	"github.com/lxc/lxd/lxd/util"
 
 	"github.com/canonical/microcloud/microcloud/api"
+	"github.com/canonical/microcloud/microcloud/db"
 )
 
 // CloudService is a MicroCloud service.
@@ -38,7 +39,19 @@ func NewCloudService(ctx context.Context, name string, addr string, dir string, 
 
 // StartCloud launches the MicroCloud daemon with the appropriate hooks.
 func (s *CloudService) StartCloud(service *ServiceHandler) error {
-	return s.client.Start(nil, nil, &config.Hooks{
+	endpoints := []rest.Endpoint{
+		api.CephClusterCmd,
+		api.CephControlCmd,
+		api.CephTokensCmd,
+		api.LXDClusterMemberCmd,
+		api.LXDClusterCmd,
+		api.LXDProfilesCmd,
+
+		api.LXDProxy,
+		api.CephProxy,
+	}
+
+	return s.client.Start(endpoints, db.SchemaExtensions, &config.Hooks{
 		OnBootstrap: service.Bootstrap,
 		OnStart:     service.Start,
 		OnJoin:      service.Join,
