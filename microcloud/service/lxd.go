@@ -164,3 +164,8 @@ func (s LXDService) Address() string {
 func (s LXDService) Port() int {
 	return s.port
 }
+
+// StateDir returns the path to the service's state directory.
+func (s LXDService) StateDir() string {
+	return s.dir
+}

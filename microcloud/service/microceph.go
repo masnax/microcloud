@@ -12,20 +12,22 @@ import (
 type CephService struct {
 	Client *microcluster.MicroCluster
 
+	dir     string
 	name    string
 	address string
 	port    int
 }
 
 // NewCephService creates a new MicroCeph service with a client attached.
-func NewCephService(ctx context.Context, name string, addr string, dir string, verbose bool, debug bool) (*CephService, error) {
-	client, err := microcluster.App(ctx, dir, verbose, debug)
+func NewCephService(ctx context.Context, name string, addr string, cloudDir string, cephDir string) (*CephService, error) {
+	client, err := microcluster.App(ctx, cloudDir, false, false)
 	if err != nil {
 		return nil, err
 	}
 
 	return &CephService{
 		Client:  client,
+		dir:     cephDir,
 		name:    name,
 		address: addr,
 		port:    CephPort,
@@ -65,4 +67,9 @@ func (s CephService) Address() string {
 // Port returns the port of this Service instance.
 func (s CephService) Port() int {
 	return s.port
+}
+
+// StateDir returns the path to the service's state directory.
+func (s CephService) StateDir() string {
+	return s.dir
 }

@@ -6,7 +6,10 @@ import (
 
 	"github.com/canonical/microcluster/config"
 	"github.com/canonical/microcluster/microcluster"
+	"github.com/canonical/microcluster/rest"
 	"github.com/lxc/lxd/lxd/util"
+
+	"github.com/canonical/microcloud/microcloud/api"
 )
 
 // CloudService is a MicroCloud service.
@@ -75,4 +78,13 @@ func (s CloudService) Address() string {
 // Port returns the port of this Service instance.
 func (s CloudService) Port() int {
 	return s.port
+}
+
+// StateDir returns the path to the service's state directory.
+func (s CloudService) StateDir() string {
+	if s.client != nil {
+		return s.client.FileSystem.StateDir
+	}
+
+	return ""
 }

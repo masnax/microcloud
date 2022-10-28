@@ -10,4 +10,5 @@ type Service interface {
 	Name() string
 	Address() string
 	Port() int
+	StateDir() string
 }
