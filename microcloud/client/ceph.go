@@ -3,11 +3,15 @@ package client
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	cephTypes "github.com/canonical/microceph/microceph/api/types"
 	"github.com/canonical/microcluster/client"
 	"github.com/canonical/microcluster/rest/types"
+	"github.com/lxc/lxd/shared"
 	"github.com/lxc/lxd/shared/api"
 )
 
@@ -17,8 +21,20 @@ type CephClient struct {
 }
 
 // NewCephClient returns a CephClient with the underlying Client.
-func NewCephClient(c *client.Client) *CephClient {
-	return &CephClient{Client: c}
+func NewCephClient(c *client.Client) *client.Client {
+	tx := c.Transport.(*http.Transport)
+
+	tx.Proxy = func(r *http.Request) (*url.URL, error) {
+		if !strings.HasPrefix(r.URL.Path, "/1.0/services/microceph") {
+			r.URL.Path = "/1.0/services/microceph" + r.URL.Path
+		}
+
+		return shared.ProxyFromEnvironment(r)
+	}
+
+	c.Transport = tx
+
+	return c
 }
 
 // ControlPost represents the internal Control type passed to the MicroCeph control API.

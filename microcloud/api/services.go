@@ -72,7 +72,7 @@ func cephHandler(s *state.State, r *http.Request) response.Response {
 	r.URL.Scheme = "http"
 	r.URL.Host = filepath.Join(MicroCephDir, "control.socket")
 	r.Host = r.URL.Host
-	client, err := microcluster.App(s.Context, MicroCephDir, false, false)
+	client, err := microcluster.App(s.Context, microcluster.Args{StateDir: MicroCephDir})
 	if err != nil {
 		return response.SmartError(err)
 	}

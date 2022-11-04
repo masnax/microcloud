@@ -42,7 +42,7 @@ var CephClusterCmd = rest.Endpoint{
 }
 
 func cephControlPost(state *state.State, r *http.Request) response.Response {
-	m, err := microcluster.App(state.Context, MicroCephDir, false, false)
+	m, err := microcluster.App(state.Context, microcluster.Args{StateDir: MicroCephDir})
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -71,7 +71,7 @@ func cephControlPost(state *state.State, r *http.Request) response.Response {
 }
 
 func cephTokensPost(state *state.State, r *http.Request) response.Response {
-	m, err := microcluster.App(state.Context, MicroCephDir, false, false)
+	m, err := microcluster.App(state.Context, microcluster.Args{StateDir: MicroCephDir})
 	if err != nil {
 		return response.SmartError(err)
 	}
@@ -91,7 +91,7 @@ func cephTokensPost(state *state.State, r *http.Request) response.Response {
 }
 
 func cephClusterGet(state *state.State, r *http.Request) response.Response {
-	m, err := microcluster.App(state.Context, MicroCephDir, false, false)
+	m, err := microcluster.App(state.Context, microcluster.Args{StateDir: MicroCephDir})
 	if err != nil {
 		return response.SmartError(err)
 	}

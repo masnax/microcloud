@@ -2,13 +2,14 @@ module github.com/canonical/microcloud/microcloud
 
 go 1.18
 
+replace github.com/canonical/microcluster => /root/go/src/github.com/canonical/microcluster
+
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.6
-	github.com/c-bata/go-prompt v0.2.6
 	github.com/canonical/microceph/microceph v0.0.0-20221026151212-499c15f5944d
 	github.com/canonical/microcluster v0.0.0-20221012211856-fd33137ea536
 	github.com/hashicorp/mdns v1.0.5
-	github.com/lxc/lxd v0.0.0-20221028194815-bebd8375a25f
+	github.com/lxc/lxd v0.0.0-20221104081923-e0fbf08ed3d0
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/spf13/cobra v1.6.1
 )
@@ -40,13 +41,11 @@ require (
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/mattn/go-runewidth v0.0.14 // indirect
 	github.com/mattn/go-sqlite3 v1.14.16 // indirect
-	github.com/mattn/go-tty v0.0.4 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
 	github.com/miekg/dns v1.1.50 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/sftp v1.13.5 // indirect
-	github.com/pkg/term v1.2.0-beta.2 // indirect
 	github.com/pkg/xattr v0.4.9 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.2 // indirect
