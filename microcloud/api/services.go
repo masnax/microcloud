@@ -44,9 +44,9 @@ func lxdHandler(s *state.State, r *http.Request) response.Response {
 	r.RequestURI = ""
 	r.URL.Path = path
 	r.URL.Scheme = "http"
-	r.URL.Host = filepath.Join(LXDDir, "unix.socket")
+	r.URL.Host = "unix.socket"
 	r.Host = r.URL.Host
-	client, err := lxd.ConnectLXDUnix(filepath.Join(LXDDir, "unix.socket"), nil)
+	client, err := lxd.ConnectLXDUnix(filepath.Join(LXDDir, r.Host), nil)
 	if err != nil {
 		return response.SmartError(fmt.Errorf("Failed to connect to local LXD: %w", err))
 	}
