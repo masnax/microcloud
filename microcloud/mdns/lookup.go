@@ -21,7 +21,7 @@ type ServerInfo struct {
 	Version    string
 	Name       string
 	Address    string
-	Networks   []NetworkInfo
+	Interface  string
 	Services   []types.ServiceType
 	AuthSecret string
 }
@@ -30,6 +30,11 @@ type ServerInfo struct {
 type NetworkInfo struct {
 	Interface string
 	Address   string
+}
+
+// LookupKey returns a unique key representing a lookup entry.
+func (s ServerInfo) LookupKey() string {
+	return fmt.Sprintf("%s-%s-%s", s.Name, s.Interface, s.Address)
 }
 
 // forwardingWriter forwards the mdns log message to LXD's logger package.
@@ -96,7 +101,7 @@ func LookupPeers(ctx context.Context, version string, localPeer string) (map[str
 			continue
 		}
 
-		peers[info.Name] = info
+		peers[info.LookupKey()] = info
 	}
 
 	return peers, nil

@@ -304,12 +304,12 @@ func lookupPeers(s *service.ServiceHandler, autoSetup bool) (map[string]mdns.Ser
 				return nil, err
 			}
 
-			for peer, info := range peers {
-				if skipPeers[peer] {
+			for key, info := range peers {
+				if skipPeers[info.Name] {
 					continue
 				}
 
-				_, ok := totalPeers[peer]
+				_, ok := totalPeers[key]
 				if !ok {
 					serviceMap := make(map[types.ServiceType]bool, len(info.Services))
 					for _, service := range info.Services {
@@ -318,18 +318,15 @@ func lookupPeers(s *service.ServiceHandler, autoSetup bool) (map[string]mdns.Ser
 
 					for service := range s.Services {
 						if !serviceMap[service] {
-							skipPeers[peer] = true
-							logger.Infof("Skipping peer %q due to missing services (%s)", peer, string(service))
+							skipPeers[info.Name] = true
+							logger.Infof("Skipping peer %q due to missing services (%s)", info.Name, string(service))
 							break
 						}
 					}
 
-					if !skipPeers[peer] {
-						fmt.Printf(" Found %q\n", peer)
-
-						// Unset info.Address so we can supply the one we select.
-						info.Address = ""
-						totalPeers[peer] = info
+					if !skipPeers[info.Name] {
+						fmt.Printf(" Found %q at %s (%s)\n", info.Name, info.Address, info.Interface)
+						totalPeers[key] = info
 					}
 				}
 			}
@@ -340,7 +337,7 @@ func lookupPeers(s *service.ServiceHandler, autoSetup bool) (map[string]mdns.Ser
 			}
 
 			// Sleep for a few seconds before retrying.
-			time.Sleep(time.Second)
+			time.Sleep(time.Millisecond)
 		}
 	}
 
@@ -369,14 +366,11 @@ func selectPeers(s *service.ServiceHandler, givenSubnet *net.IPNet, autoSetup bo
 
 	if autoSetup {
 		networkPeers := map[string]mdns.ServerInfo{}
-		for peer, info := range peers {
-			for _, network := range info.Networks {
-				if subnet.Contains(net.ParseIP(network.Address)) {
-					info.Address = network.Address
-					networkPeers[peer] = info
+		for _, info := range peers {
+			if subnet.Contains(net.ParseIP(info.Address)) {
+				networkPeers[info.Name] = info
 
-					break
-				}
+				break
 			}
 		}
 
@@ -402,10 +396,8 @@ func selectPeers(s *service.ServiceHandler, givenSubnet *net.IPNet, autoSetup bo
 	header := []string{"NAME", "IFACE", "ADDR"}
 	data := [][]string{}
 	for _, info := range peers {
-		for _, network := range info.Networks {
-			if subnet == nil || subnet.Contains(net.ParseIP(network.Address)) {
-				data = append(data, []string{info.Name, network.Interface, network.Address})
-			}
+		if subnet == nil || subnet.Contains(net.ParseIP(info.Address)) {
+			data = append(data, []string{info.Name, info.Interface, info.Address})
 		}
 	}
 

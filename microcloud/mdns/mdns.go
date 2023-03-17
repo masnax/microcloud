@@ -11,7 +11,7 @@ import (
 const ClusterService = "_microcloud"
 
 // clusterSize is the maximum number of cluster members we can find.
-const clusterSize = 1000
+const clusterSize = 10000
 
 func NewBroadcast(name string, addr string, port int, txt []byte) (*mdns.Server, error) {
 	var sendTXT []string

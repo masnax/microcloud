@@ -107,12 +107,12 @@ func (s *ServiceHandler) Start(state *state.State) error {
 		Version:    cloudMDNS.Version,
 		Name:       s.Name,
 		Services:   services,
-		Networks:   networks,
 		AuthSecret: s.AuthSecret,
 	}
 
-	for _, net := range info.Networks {
+	for _, net := range networks {
 		info.Address = net.Address
+		info.Interface = net.Interface
 		bytes, err := json.Marshal(info)
 		if err != nil {
 			return fmt.Errorf("Failed to marshal server info: %w", err)
