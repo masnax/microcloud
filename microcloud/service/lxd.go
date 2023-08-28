@@ -400,7 +400,7 @@ func (s *LXDService) Restart(timeoutSeconds int) error {
 	}
 
 	_, _, err = c.RawQuery("PUT", "/internal/shutdown", nil, "")
-	if err != nil {
+	if err != nil && !api.StatusErrorCheck(err, http.StatusTooManyRequests) {
 		return fmt.Errorf("Failed to send shutdown request to LXD: %w", err)
 	}
 
