@@ -148,8 +148,8 @@ func (s LXDService) Bootstrap() error {
 		return fmt.Errorf("Failed to initialize cluster: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1 * time.Minute)
-  defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancel()
 	for {
 		select {
 		case <-ctx.Done():
@@ -472,8 +472,8 @@ func (s *LXDService) waitReady(c lxd.InstanceServer, timeoutSeconds int) error {
 		}
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1 * time.Minute)
-  defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancel()
 
 	if timeoutSeconds > 0 {
 		select {
