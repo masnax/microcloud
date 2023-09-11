@@ -38,12 +38,6 @@ type JoinConfig struct {
 	CephConfig []cephTypes.DisksPost
 }
 
-// joinResponse is returned in a channel after sending a join request to a peer.
-type joinResponse struct {
-	Name  string
-	Error error
-}
-
 // NewCloudService creates a new MicroCloud service with a client attached.
 func NewCloudService(ctx context.Context, name string, addr string, dir string, verbose bool, debug bool) (*CloudService, error) {
 	client, err := microcluster.App(ctx, microcluster.Args{StateDir: dir, ListenPort: strconv.Itoa(CloudPort)})
@@ -106,35 +100,33 @@ func (s CloudService) Join(joinConfig JoinConfig) error {
 	return s.client.JoinCluster(s.name, util.CanonicalNetworkAddress(s.address, s.port), joinConfig.Token, 5*time.Minute)
 }
 
-// RequestJoin notifies the peers that that should begin the join operation.
-func (s CloudService) RequestJoin(ctx context.Context, secrets map[string]string, joinConfig map[string]types.ServicesPut) chan joinResponse {
-	joinedChan := make(chan joinResponse, len(joinConfig))
-	for peer, cfg := range joinConfig {
-		go func(peer string, cfg types.ServicesPut) {
-			if secrets[peer] == "" {
-				joinedChan <- joinResponse{Name: peer, Error: fmt.Errorf("No auth secret found for peer")}
-				return
-			}
+// RequestJoin sends the signal to initiate a join to the remote system.
+// This can become blocking if there is a dqlite error, so instead return a channel immediately.
+func (s CloudService) RequestJoin(ctx context.Context, secret string, name string, joinConfig types.ServicesPut) chan error {
+	joinFunc := func() error {
+		c, err := s.client.RemoteClient(util.CanonicalNetworkAddress(joinConfig.Address, CloudPort))
+		if err != nil {
+			return err
+		}
 
-			c, err := s.client.RemoteClient(util.CanonicalNetworkAddress(cfg.Address, CloudPort))
-			if err != nil {
-				joinedChan <- joinResponse{Name: peer, Error: err}
-				return
-			}
+		c.Client.Client.Transport = &http.Transport{
+			TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+			DisableKeepAlives: true,
+			Proxy: func(r *http.Request) (*url.URL, error) {
+				r.Header.Set("X-MicroCloud-Auth", secret)
 
-			c.Client.Client.Transport = &http.Transport{
-				TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
-				DisableKeepAlives: true,
-				Proxy: func(r *http.Request) (*url.URL, error) {
-					r.Header.Set("X-MicroCloud-Auth", secrets[peer])
+				return shared.ProxyFromEnvironment(r)
+			},
+		}
 
-					return shared.ProxyFromEnvironment(r)
-				},
-			}
-
-			joinedChan <- joinResponse{Name: peer, Error: client.JoinServices(ctx, c, cfg)}
-		}(peer, cfg)
+		return client.JoinServices(ctx, c, joinConfig)
 	}
+
+	joinedChan := make(chan error)
+
+	go func() {
+		joinedChan <- joinFunc()
+	}()
 
 	return joinedChan
 }
