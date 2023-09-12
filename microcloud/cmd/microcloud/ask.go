@@ -92,7 +92,11 @@ func (c *CmdControl) askAddress(autoSetup bool, listenAddr string) (string, *net
 			table := NewSelectableTable([]string{"ADDRESS", "IFACE"}, data)
 			c.askRetry("Retry selecting an address?", autoSetup, func() error {
 				fmt.Println("Select an address for MicroCloud's internal traffic:")
-				table.Render(table.rows)
+				err := table.Render(table.rows)
+				if err != nil {
+					return err
+				}
+
 				answers, err := table.GetSelections()
 				if err != nil {
 					return err
@@ -302,7 +306,11 @@ func askLocalPool(systems map[string]InitSystem, autoSetup bool, wipeAllDisks bo
 		header := []string{"LOCATION", "MODEL", "CAPACITY", "TYPE", "PATH"}
 		table := NewSelectableTable(header, data)
 		fmt.Println("Select exactly one disk from each cluster member:")
-		table.Render(table.rows)
+		err := table.Render(table.rows)
+		if err != nil {
+			return err
+		}
+
 		selectedRows, err := table.GetSelections()
 		if err != nil {
 			return fmt.Errorf("Failed to confirm local LXD disk selection: %w", err)
@@ -326,7 +334,11 @@ func askLocalPool(systems map[string]InitSystem, autoSetup bool, wipeAllDisks bo
 
 		if !wipeAllDisks && wipeable {
 			fmt.Println("Select which disks to wipe:")
-			table.Render(selectedRows)
+			err := table.Render(selectedRows)
+			if err != nil {
+				return err
+			}
+
 			wipeRows, err := table.GetSelections()
 			if err != nil {
 				return fmt.Errorf("Failed to confirm which disks to wipe: %w", err)
@@ -416,8 +428,11 @@ func askRemotePool(systems map[string]InitSystem, autoSetup bool, wipeAllDisks b
 
 	if !autoSetup {
 		fmt.Println("Select from the available unpartitioned disks:")
-		var err error
-		table.Render(table.rows)
+		err := table.Render(table.rows)
+		if err != nil {
+			return err
+		}
+
 		selected, err = table.GetSelections()
 		if err != nil {
 			return fmt.Errorf("Failed to confirm disk selection: %w", err)
@@ -425,7 +440,11 @@ func askRemotePool(systems map[string]InitSystem, autoSetup bool, wipeAllDisks b
 
 		if len(selected) > 0 && !wipeAllDisks {
 			fmt.Println("Select which disks to wipe:")
-			table.Render(selected)
+			err := table.Render(selected)
+			if err != nil {
+				return err
+			}
+
 			toWipe, err = table.GetSelections()
 			if err != nil {
 				return fmt.Errorf("Failed to confirm disk wipe selection: %w", err)
@@ -584,7 +603,11 @@ func (c *CmdControl) askNetwork(sh *service.Handler, systems map[string]InitSyst
 	table := NewSelectableTable(header, data)
 	var selected map[string]string
 	c.askRetry("Retry selecting uplink interfaces?", autoSetup, func() error {
-		table.Render(table.rows)
+		err := table.Render(table.rows)
+		if err != nil {
+			return err
+		}
+
 		answers, err := table.GetSelections()
 		if err != nil {
 			return err
