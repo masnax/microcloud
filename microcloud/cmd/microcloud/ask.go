@@ -18,7 +18,7 @@ import (
 )
 
 // askRetry will print all errors and re-attempt the given function on user input.
-func askRetry(question string, autoSetup bool, f func() error) {
+func (c *CmdControl) askRetry(question string, autoSetup bool, f func() error) {
 	for {
 		retry := false
 		err := f()
@@ -26,7 +26,7 @@ func askRetry(question string, autoSetup bool, f func() error) {
 			fmt.Println(err)
 
 			if !autoSetup {
-				retry, err = cli.AskBool(fmt.Sprintf("%s (yes/no) [default=yes]: ", question), "yes")
+				retry, err = c.asker.AskBool(fmt.Sprintf("%s (yes/no) [default=yes]: ", question), "yes")
 				if err != nil {
 					fmt.Println(err)
 					retry = false
@@ -40,7 +40,7 @@ func askRetry(question string, autoSetup bool, f func() error) {
 	}
 }
 
-func askMissingServices(services []types.ServiceType, stateDirs map[types.ServiceType]string, autoSetup bool) ([]types.ServiceType, error) {
+func (c *CmdControl) askMissingServices(services []types.ServiceType, stateDirs map[types.ServiceType]string, autoSetup bool) ([]types.ServiceType, error) {
 	missingServices := []string{}
 	for serviceType, stateDir := range stateDirs {
 		if service.Exists(serviceType, stateDir) {
@@ -53,7 +53,7 @@ func askMissingServices(services []types.ServiceType, stateDirs map[types.Servic
 	if len(missingServices) > 0 {
 		serviceStr := strings.Join(missingServices, ", ")
 		if !autoSetup {
-			confirm, err := cli.AskBool(fmt.Sprintf("%s not found. Continue anyway? (yes/no) [default=yes]: ", serviceStr), "yes")
+			confirm, err := c.asker.AskBool(fmt.Sprintf("%s not found. Continue anyway? (yes/no) [default=yes]: ", serviceStr), "yes")
 			if err != nil {
 				return nil, err
 			}
@@ -71,7 +71,7 @@ func askMissingServices(services []types.ServiceType, stateDirs map[types.Servic
 	return services, nil
 }
 
-func askAddress(autoSetup bool, listenAddr string) (string, *net.IPNet, error) {
+func (c *CmdControl) askAddress(autoSetup bool, listenAddr string) (string, *net.IPNet, error) {
 	info, err := mdns.GetNetworkInfo()
 	if err != nil {
 		return "", nil, fmt.Errorf("Failed to find network interfaces: %w", err)
@@ -90,7 +90,7 @@ func askAddress(autoSetup bool, listenAddr string) (string, *net.IPNet, error) {
 			}
 
 			table := NewSelectableTable([]string{"ADDRESS", "IFACE"}, data)
-			askRetry("Retry selecting an address?", autoSetup, func() error {
+			c.askRetry("Retry selecting an address?", autoSetup, func() error {
 				fmt.Println("Select an address for MicroCloud's internal traffic:")
 				table.Render(table.rows)
 				answers, err := table.GetSelections()
@@ -128,7 +128,7 @@ func askAddress(autoSetup bool, listenAddr string) (string, *net.IPNet, error) {
 	}
 
 	if !autoSetup {
-		filter, err := cli.AskBool(fmt.Sprintf("Limit search for other MicroCloud servers to %s? (yes/no) [default=yes]: ", subnet.String()), "yes")
+		filter, err := c.asker.AskBool(fmt.Sprintf("Limit search for other MicroCloud servers to %s? (yes/no) [default=yes]: ", subnet.String()), "yes")
 		if err != nil {
 			return "", nil, err
 		}
@@ -141,7 +141,7 @@ func askAddress(autoSetup bool, listenAddr string) (string, *net.IPNet, error) {
 	return listenAddr, subnet, nil
 }
 
-func askDisks(sh *service.Handler, systems map[string]InitSystem, autoSetup bool, wipeAllDisks bool) error {
+func (c *CmdControl) askDisks(sh *service.Handler, systems map[string]InitSystem, autoSetup bool, wipeAllDisks bool) error {
 	_, bootstrap := systems[sh.Name]
 	allResources := make(map[string]*api.Resources, len(systems))
 	var err error
@@ -171,7 +171,7 @@ func askDisks(sh *service.Handler, systems map[string]InitSystem, autoSetup bool
 
 	wantsDisks := true
 	if !autoSetup && foundDisks {
-		wantsDisks, err = cli.AskBool("Would you like to set up local storage? (yes/no) [default=yes]: ", "yes")
+		wantsDisks, err = c.asker.AskBool("Would you like to set up local storage? (yes/no) [default=yes]: ", "yes")
 		if err != nil {
 			return err
 		}
@@ -183,7 +183,7 @@ func askDisks(sh *service.Handler, systems map[string]InitSystem, autoSetup bool
 
 	lxd := sh.Services[types.LXD].(*service.LXDService)
 	if wantsDisks {
-		askRetry("Retry selecting disks?", autoSetup, func() error {
+		c.askRetry("Retry selecting disks?", autoSetup, func() error {
 			return askLocalPool(systems, autoSetup, wipeAllDisks, *lxd)
 		})
 	}
@@ -201,13 +201,13 @@ func askDisks(sh *service.Handler, systems map[string]InitSystem, autoSetup bool
 		} else {
 			wantsDisks = true
 			if !autoSetup {
-				wantsDisks, err = cli.AskBool("Would you like to set up distributed storage? (yes/no) [default=yes]: ", "yes")
+				wantsDisks, err = c.asker.AskBool("Would you like to set up distributed storage? (yes/no) [default=yes]: ", "yes")
 				if err != nil {
 					return err
 				}
 
 				if len(systems) != len(availableDisks) && wantsDisks {
-					wantsDisks, err = cli.AskBool("Unable to find disks on some systems. Continue anyway? (yes/no) [default=yes]: ", "yes")
+					wantsDisks, err = c.asker.AskBool("Unable to find disks on some systems. Continue anyway? (yes/no) [default=yes]: ", "yes")
 					if err != nil {
 						return err
 					}
@@ -215,7 +215,7 @@ func askDisks(sh *service.Handler, systems map[string]InitSystem, autoSetup bool
 			}
 
 			if wantsDisks {
-				askRetry("Retry selecting disks?", autoSetup, func() error {
+				c.askRetry("Retry selecting disks?", autoSetup, func() error {
 					return askRemotePool(systems, autoSetup, wipeAllDisks, sh)
 				})
 			} else {
@@ -488,7 +488,7 @@ func askRemotePool(systems map[string]InitSystem, autoSetup bool, wipeAllDisks b
 	return fmt.Errorf("Unable to add remote storage pool: At least 3 peers must have allocated disks")
 }
 
-func askNetwork(sh *service.Handler, systems map[string]InitSystem, autoSetup bool) error {
+func (c *CmdControl) askNetwork(sh *service.Handler, systems map[string]InitSystem, autoSetup bool) error {
 	_, bootstrap := systems[sh.Name]
 	lxd := sh.Services[types.LXD].(*service.LXDService)
 	for peer, system := range systems {
@@ -543,7 +543,7 @@ func askNetwork(sh *service.Handler, systems map[string]InitSystem, autoSetup bo
 	}
 
 	// Ask the user if they want OVN.
-	wantsOVN, err := cli.AskBool("Configure distributed networking? (yes/no) [default=yes]: ", "yes")
+	wantsOVN, err := c.asker.AskBool("Configure distributed networking? (yes/no) [default=yes]: ", "yes")
 	if err != nil {
 		return err
 	}
@@ -561,7 +561,7 @@ func askNetwork(sh *service.Handler, systems map[string]InitSystem, autoSetup bo
 	}
 
 	if missingSystems {
-		wantsSkip, err := cli.AskBool("Some systems are ineligible for distributed networking. Continue anyway? (yes/no) [default=yes]: ", "yes")
+		wantsSkip, err := c.asker.AskBool("Some systems are ineligible for distributed networking. Continue anyway? (yes/no) [default=yes]: ", "yes")
 		if err != nil {
 			return err
 		}
@@ -583,7 +583,7 @@ func askNetwork(sh *service.Handler, systems map[string]InitSystem, autoSetup bo
 
 	table := NewSelectableTable(header, data)
 	var selected map[string]string
-	askRetry("Retry selecting uplink interfaces?", autoSetup, func() error {
+	c.askRetry("Retry selecting uplink interfaces?", autoSetup, func() error {
 		table.Render(table.rows)
 		answers, err := table.GetSelections()
 		if err != nil {
@@ -644,7 +644,7 @@ func askNetwork(sh *service.Handler, systems map[string]InitSystem, autoSetup bo
 			}
 
 			msg := fmt.Sprintf("Specify the %s gateway (CIDR) on the uplink network (empty to skip %s): ", ip, ip)
-			gateway, err := cli.AskString(msg, "", validator)
+			gateway, err := c.asker.AskString(msg, "", validator)
 			if err != nil {
 				return err
 			}
@@ -668,12 +668,12 @@ func askNetwork(sh *service.Handler, systems map[string]InitSystem, autoSetup bo
 				}
 
 				if ip == "IPv4" {
-					rangeStart, err := cli.AskString(fmt.Sprintf("Specify the first %s address in the range to use with LXD: ", ip), "", validator)
+					rangeStart, err := c.asker.AskString(fmt.Sprintf("Specify the first %s address in the range to use with LXD: ", ip), "", validator)
 					if err != nil {
 						return err
 					}
 
-					rangeEnd, err := cli.AskString(fmt.Sprintf("Specify the last %s address in the range to use with LXD: ", ip), "", validator)
+					rangeEnd, err := c.asker.AskString(fmt.Sprintf("Specify the last %s address in the range to use with LXD: ", ip), "", validator)
 					if err != nil {
 						return err
 					}
