@@ -772,7 +772,24 @@ create_system() {
       exec >> /dev/null
     fi
 
-    lxc init images:ubuntu/22.04 "${name}" --vm -c limits.cpu=2 -c limits.memory=4GiB
+    # If running on the PS5 test system, pin CPUs and leave 1 behind so we don't overload the host.
+    if hostname -f | grep -q max01 ; then
+      if [ ${name} = "micro01" ]; then
+        lxc init images:ubuntu/22.04 "${name}" --vm -c limits.cpu=0,1,2 -c limits.memory=4GiB
+      fi
+      if [ ${name} = "micro02" ]; then
+        lxc init images:ubuntu/22.04 "${name}" --vm -c limits.cpu=2,3,4 -c limits.memory=4GiB
+      fi
+      if [ ${name} = "micro03" ]; then
+        lxc init images:ubuntu/22.04 "${name}" --vm -c limits.cpu=4,5,6 -c limits.memory=4GiB
+      fi
+
+      if [ ${name} = "micro04" ]; then
+        lxc init images:ubuntu/22.04 "${name}" --vm -c limits.cpu=1,3,5 -c limits.memory=4GiB
+      fi
+    else
+      lxc init images:ubuntu/22.04 "${name}" --vm -c limits.cpu=2 -c limits.memory=4GiB
+    fi
 
     for n in $(seq 1 ${num_disks}) ; do
       disk="${name}-disk${n}"
