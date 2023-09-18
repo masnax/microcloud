@@ -289,8 +289,16 @@ func waitForJoin(sh *service.Handler, clusterSize int, secret string, peer strin
 
 	cloud := sh.Services[types.MicroCloud].(*service.CloudService)
 	errChan := cloud.RequestJoin(context.Background(), secret, peer, cfg)
-	ctx, cancel := context.WithTimeout(context.Background(), 1 * time.Minute)
-  defer cancel()
+
+	// The test systems are currently too slow and require a long time to join the cluster,
+	// so bump the timeout if we are running there.
+	timeout := 1 * time.Minute
+	if os.Getenv("https_proxy") == "http://squid.internal:3128" {
+		timeout = 10 * time.Minute
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
 	select {
 	case <-ctx.Done():
