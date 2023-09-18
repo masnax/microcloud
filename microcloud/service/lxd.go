@@ -148,9 +148,11 @@ func (s LXDService) Bootstrap() error {
 		return fmt.Errorf("Failed to initialize cluster: %w", err)
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 1 * time.Minute)
+  defer cancel()
 	for {
 		select {
-		case <-time.After(30 * time.Second):
+		case <-ctx.Done():
 			return fmt.Errorf("Timed out waiting for LXD cluster to initialize")
 		default:
 			names, err := client.GetClusterMemberNames()
@@ -161,6 +163,8 @@ func (s LXDService) Bootstrap() error {
 			if len(names) > 0 {
 				return nil
 			}
+
+			time.Sleep(300 * time.Millisecond)
 		}
 	}
 }
@@ -468,11 +472,14 @@ func (s *LXDService) waitReady(c lxd.InstanceServer, timeoutSeconds int) error {
 		}
 	}()
 
+	ctx, cancel := context.WithTimeout(context.Background(), 1 * time.Minute)
+  defer cancel()
+
 	if timeoutSeconds > 0 {
 		select {
 		case <-finger:
 			break
-		case <-time.After(time.Second * time.Duration(timeoutSeconds)):
+		case <-ctx.Done():
 			return fmt.Errorf("LXD is still not running after %ds timeout (%v)", timeoutSeconds, errLast)
 		}
 	} else {

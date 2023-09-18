@@ -82,9 +82,11 @@ func (s CephService) Bootstrap() error {
 		return err
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 1 * time.Minute)
+  defer cancel()
 	for {
 		select {
-		case <-time.After(30 * time.Second):
+		case <-ctx.Done():
 			return fmt.Errorf("Timed out waiting for MicroCeph cluster to initialize")
 		default:
 			names, err := s.ClusterMembers()
@@ -95,6 +97,8 @@ func (s CephService) Bootstrap() error {
 			if len(names) > 0 {
 				return nil
 			}
+
+			time.Sleep(300 * time.Millisecond)
 		}
 	}
 }
