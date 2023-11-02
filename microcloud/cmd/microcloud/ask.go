@@ -162,9 +162,7 @@ func (c *CmdControl) askDisks(sh *service.Handler, systems map[string]InitSystem
 		system := systems[peer]
 		system.AvailableDisks = make([]api.ResourcesStorageDisk, 0, len(r.Storage.Disks))
 		for _, disk := range r.Storage.Disks {
-			if len(disk.Partitions) == 0 {
-				system.AvailableDisks = append(system.AvailableDisks, disk)
-			}
+			system.AvailableDisks = append(system.AvailableDisks, disk)
 		}
 
 		if len(system.AvailableDisks) > 0 {
@@ -283,14 +281,21 @@ func askLocalPool(systems map[string]InitSystem, autoSetup bool, wipeAllDisks bo
 		}
 
 		for _, disk := range system.AvailableDisks {
-			devicePath := parseDiskPath(disk)
-			data = append(data, []string{peer, disk.Model, units.GetByteSizeStringIEC(int64(disk.Size), 2), disk.Type, devicePath})
+			for _, part := range disk.Partitions {
+				devicePath := parseDiskPath(api.ResourcesStorageDisk{ID: part.ID})
+				data = append(data, []string{peer, disk.Model, units.GetByteSizeStringIEC(int64(disk.Size), 2), fmt.Sprintf("partition (%s)", disk.Type), devicePath})
+			}
 
-			// Add the first disk for each peer.
-			if autoSetup {
-				_, ok := selected[peer]
-				if !ok {
-					selected[peer] = devicePath
+			if len(disk.Partitions) == 0 {
+				devicePath := parseDiskPath(disk)
+				data = append(data, []string{peer, disk.Model, units.GetByteSizeStringIEC(int64(disk.Size), 2), disk.Type, devicePath})
+
+				// Add the first disk for each peer.
+				if autoSetup {
+					_, ok := selected[peer]
+					if !ok {
+						selected[peer] = devicePath
+					}
 				}
 			}
 		}
@@ -377,10 +382,10 @@ func askLocalPool(systems map[string]InitSystem, autoSetup bool, wipeAllDisks bo
 			system.JoinConfig = lxd.DefaultZFSStoragePoolJoinConfig(wipeable && toWipe[target] != "", path)
 		}
 
-		// Remove the disks that we selected.
+		// Remove the disks that we selected, or any disks with partitions.
 		remainingDisks := make([]api.ResourcesStorageDisk, 0, len(system.AvailableDisks)-1)
 		for _, disk := range system.AvailableDisks {
-			if parseDiskPath(disk) != path {
+			if parseDiskPath(disk) != path && len(disk.Partitions) == 0 {
 				remainingDisks = append(remainingDisks, disk)
 			}
 		}
