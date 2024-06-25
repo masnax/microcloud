@@ -23,6 +23,7 @@ import (
 
 	"github.com/canonical/microcloud/microcloud/api"
 	"github.com/canonical/microcloud/microcloud/api/types"
+	"github.com/canonical/microcloud/microcloud/cluster"
 	"github.com/canonical/microcloud/microcloud/mdns"
 	"github.com/canonical/microcloud/microcloud/service"
 )
@@ -66,7 +67,9 @@ type initConfig struct {
 	name         string
 	lookupIface  *net.Interface
 	lookupSubnet *net.IPNet
-	systems      map[string]InitSystem
+
+	systems map[string]InitSystem
+	state   map[string]*cluster.SystemInformation
 }
 
 type cmdInit struct {
@@ -107,6 +110,7 @@ func (c *cmdInit) Run(cmd *cobra.Command, args []string) error {
 		common:       c.common,
 		asker:        &c.common.asker,
 		systems:      map[string]InitSystem{},
+		state:        map[string]*cluster.SystemInformation{},
 	}
 
 	if c.flagPreseed {
@@ -167,6 +171,41 @@ func (c *initConfig) RunInteractive(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	c.state[c.name], err = cluster.CollectSystemInformation(context.Background(), s, mdns.ServerInfo{Name: c.name, Address: c.address, Services: services})
+	if err != nil {
+		return err
+	}
+
+	for _, system := range c.systems {
+		if system.ServerInfo.Name == "" || system.ServerInfo.Name == c.name {
+			continue
+		}
+
+		c.state[system.ServerInfo.Name], err = cluster.CollectSystemInformation(context.Background(), s, system.ServerInfo)
+		if err != nil {
+			return err
+		}
+	}
+
+	for peer, system := range c.systems {
+		system.InitializedServices = c.state[peer].ExistingServices
+		c.systems[peer] = system
+	}
+
+	// Ensure LXD is not already clustered if we are running `microcloud init`.
+	for _, info := range c.state {
+		if info.ServiceClustered(types.LXD) {
+			return fmt.Errorf("%s is already clustered on %q, aborting setup", types.LXD, info.ClusterName)
+		}
+	}
+
+	// Ensure there are no existing cluster conflicts.
+	conflict, serviceType := cluster.ClustersConflict(c.state, services)
+	if conflict {
+		return fmt.Errorf("Some systems are already part of different %s clusters. Aborting initialization", serviceType)
+	}
+
+	// Ask to reuse existing clusters.
 	err = c.askClustered(s)
 	if err != nil {
 		return err
@@ -177,7 +216,7 @@ func (c *initConfig) RunInteractive(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	err = c.askNetwork(s)
+	err = c.askNetwork2(s)
 	if err != nil {
 		return err
 	}
@@ -185,6 +224,24 @@ func (c *initConfig) RunInteractive(cmd *cobra.Command, args []string) error {
 	err = c.validateSystems(s)
 	if err != nil {
 		return err
+	}
+
+	for n, s := range c.systems {
+		fmt.Printf(`
+					Name: %s
+					Secret: %s
+					InitServs: %v
+					Ceph: %d
+					Subnet: %v
+					Nets: %d
+					TargetNets: %d
+					Storage: %d
+					TargetStorage: %d
+					Joins: %v
+					\n
+				`,
+			n, s.ServerInfo.AuthSecret, s.InitializedServices, len(s.MicroCephDisks), s.MicroCephInternalNetworkSubnet, len(s.Networks), len(s.TargetNetworks), len(s.StoragePools), len(s.TargetStoragePools), s.JoinConfig)
+
 	}
 
 	err = c.setupCluster(s)
@@ -629,83 +686,6 @@ func (c *initConfig) validateSystems(s *service.Handler) (err error) {
 	}
 
 	return nil
-}
-
-// checkClustered checks whether any of the selected systems have already initialized a service.
-// Returns the first system we find that is initialized for the given service, along with all of that system's existing cluster members.
-func checkClustered(s *service.Handler, autoSetup bool, serviceType types.ServiceType, systems map[string]InitSystem) (firstInitializedSystem string, existingMembers map[string]string, err error) {
-	// LXD should always be uninitialized at this point, so we can just return default values that consider LXD uninitialized.
-	if serviceType == types.LXD {
-		return "", nil, nil
-	}
-
-	for peer, system := range systems {
-		var remoteClusterMembers map[string]string
-		var err error
-
-		// If the peer in question is ourselves, we can just use the unix socket.
-		if peer == s.Name {
-			remoteClusterMembers, err = s.Services[serviceType].ClusterMembers(context.Background())
-		} else {
-			remoteClusterMembers, err = s.Services[serviceType].RemoteClusterMembers(context.Background(), system.ServerInfo.AuthSecret, system.ServerInfo.Address)
-		}
-
-		if err != nil && err.Error() != "Daemon not yet initialized" {
-			return "", nil, fmt.Errorf("Failed to reach %s on system %q: %w", serviceType, peer, err)
-		}
-
-		// If we failed to retrieve cluster members due to the system not being initialized, we can ignore it.
-		if err != nil {
-			continue
-		}
-
-		clusterMembers := map[string]string{}
-		for k, v := range remoteClusterMembers {
-			host, _, err := net.SplitHostPort(v)
-			if err != nil {
-				return "", nil, err
-			}
-
-			clusterMembers[k] = host
-		}
-
-		if autoSetup {
-			return "", nil, fmt.Errorf("System %q is already clustered on %s", peer, serviceType)
-		}
-
-		// If this is the first clustered system we found, then record its cluster members.
-		if firstInitializedSystem == "" {
-			// Record that this system has initialized the service.
-			existingMembers = clusterMembers
-			if system.InitializedServices == nil {
-				system.InitializedServices = map[types.ServiceType]map[string]string{}
-			}
-
-			system.InitializedServices[serviceType] = clusterMembers
-			systems[peer] = system
-			firstInitializedSystem = peer
-
-			if clusterMembers[peer] != systems[peer].ServerInfo.Address && clusterMembers[peer] != "" {
-				return "", nil, fmt.Errorf("%s is already set up on %q on a different network", serviceType, peer)
-			}
-
-			continue
-		}
-
-		// If we've already encountered a clustered system, check if there's a mismatch in cluster members.
-		for k, v := range existingMembers {
-			if clusterMembers[k] != v {
-				return "", nil, fmt.Errorf("%q and %q are already part of different %s clusters. Aborting initialization", firstInitializedSystem, peer, serviceType)
-			}
-		}
-
-		// Ensure the maps are identical.
-		if len(clusterMembers) != len(existingMembers) {
-			return "", nil, fmt.Errorf("Some systems are already part of different %s clusters. Aborting initialization", serviceType)
-		}
-	}
-
-	return firstInitializedSystem, existingMembers, nil
 }
 
 // setupCluster Bootstraps the cluster if necessary, adds all peers to the cluster, and completes any post cluster

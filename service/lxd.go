@@ -332,6 +332,116 @@ func (s *LXDService) GetResources(ctx context.Context, target string, address st
 	return client.GetServerResources()
 }
 
+// CephDedicatedInterface represents a dedicated interface for Ceph.
+type CephDedicatedInterface struct {
+	Name      string
+	Type      string
+	Addresses []string
+}
+
+// GetNetworkInterfaces fetches the list of networks from LXD and returns the following:
+// - A map of uplink compatible networks keyed by interface name.
+// - A map of ceph compatible networks keyed by interface name.
+// - The list of all networks.
+func (s LXDService) GetNetworkInterfaces(ctx context.Context, name string, address string, secret string) (map[string]api.Network, map[string]CephDedicatedInterface, []api.Network, error) {
+	var err error
+	var client lxd.InstanceServer
+	if name == s.Name() {
+		client, err = s.Client(ctx, "")
+	} else {
+		client, err = s.remoteClient(secret, address, CloudPort)
+	}
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	networks, err := client.GetNetworks()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	uplinkInterfaces := map[string]api.Network{}
+	cephInterfaces := map[string]CephDedicatedInterface{}
+	for _, network := range networks {
+		filtered, addresses := defaultNetworkInterfacesFilter(client, network)
+		if filtered {
+			continue
+		}
+
+		if len(addresses) == 0 {
+			uplinkInterfaces[network.Name] = network
+		} else {
+
+			cephInterfaces[network.Name] = CephDedicatedInterface{
+				Name:      network.Name,
+				Type:      network.Type,
+				Addresses: addresses,
+			}
+		}
+	}
+
+	return uplinkInterfaces, cephInterfaces, networks, nil
+}
+
+// GetStoragePools fetches the list of all storage pools from LXD, keyed by pool name.
+func (s LXDService) GetStoragePools(ctx context.Context, name string, address string, secret string) (map[string]api.StoragePool, error) {
+	var err error
+	var client lxd.InstanceServer
+	if name == s.Name() {
+		client, err = s.Client(ctx, "")
+	} else {
+		client, err = s.remoteClient(secret, address, CloudPort)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	pools, err := client.GetStoragePools()
+	if err != nil {
+		return nil, err
+	}
+
+	poolMap := make(map[string]api.StoragePool, len(pools))
+	for _, pool := range pools {
+		poolMap[pool.Name] = pool
+	}
+
+	return poolMap, nil
+}
+
+func (s LXDService) GetConfig(ctx context.Context, clustered bool, name string, address string, secret string) (localConfig map[string]any, globalConfig map[string]any, err error) {
+	var client lxd.InstanceServer
+	if name == s.Name() {
+		client, err = s.Client(ctx, "")
+	} else {
+		client, err = s.remoteClient(secret, address, CloudPort)
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if clustered {
+		server, _, err := client.GetServer()
+		if err != nil {
+			return nil, nil, err
+		}
+
+		localServer, _, err := client.UseTarget(name).GetServer()
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return localServer.Writable().Config, server.Writable().Config, nil
+	}
+
+	server, _, err := client.GetServer()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return server.Writable().Config, nil, nil
+}
+
 // getClientsAndNetworks returns a map of clients and networks for the given LXDService and peers.
 func getClientsAndNetworks(s LXDService, ctx context.Context, bootstrap bool, peers []mdns.ServerInfo) (clients map[string]lxd.InstanceServer, networks map[string][]api.Network, err error) {
 	clients = make(map[string]lxd.InstanceServer)
@@ -385,7 +495,7 @@ func getClientsAndNetworks(s LXDService, ctx context.Context, bootstrap bool, pe
 }
 
 // defaultNetworkInterfacesFilter filters a network based on default rules and return whether it should be skipped and the addresses on the interface.
-func defaultNetworkInterfacesFilter(clients map[string]lxd.InstanceServer, peer string, network api.Network) (bool, []string) {
+func defaultNetworkInterfacesFilter(client lxd.InstanceServer, network api.Network) (bool, []string) {
 	// Skip managed networks.
 	if network.Managed {
 		return true, []string{}
@@ -396,7 +506,7 @@ func defaultNetworkInterfacesFilter(clients map[string]lxd.InstanceServer, peer 
 		return true, []string{}
 	}
 
-	state, err := clients[peer].GetNetworkState(network.Name)
+	state, err := client.GetNetworkState(network.Name)
 	if err != nil {
 		return true, []string{}
 	}
@@ -425,70 +535,6 @@ func defaultNetworkInterfacesFilter(clients map[string]lxd.InstanceServer, peer 
 	}
 
 	return false, addresses
-}
-
-// GetUplinkInterfaces returns a map of peer name to slice of api.Network that may be used with OVN.
-func (s LXDService) GetUplinkInterfaces(ctx context.Context, bootstrap bool, peers []mdns.ServerInfo) (map[string][]api.Network, error) {
-	clients, networks, err := getClientsAndNetworks(s, ctx, bootstrap, peers)
-	if err != nil {
-		return nil, err
-	}
-
-	candidates := make(map[string][]api.Network)
-	for peer, nets := range networks {
-		for _, network := range nets {
-			filtered, addresses := defaultNetworkInterfacesFilter(clients, peer, network)
-			if filtered {
-				continue
-			}
-
-			if len(addresses) > 0 {
-				continue
-			}
-
-			candidates[peer] = append(candidates[peer], network)
-		}
-	}
-
-	return candidates, nil
-}
-
-// CephDedicatedInterface represents a dedicated interface for Ceph.
-type CephDedicatedInterface struct {
-	Name      string
-	Type      string
-	Addresses []string
-}
-
-// GetCephInterfaces returns a map of peer name to slice of CephDedicatedInterface that may be used to setup
-// a dedicated Ceph network.
-func (s LXDService) GetCephInterfaces(ctx context.Context, bootstrap bool, peers []mdns.ServerInfo) (map[string][]CephDedicatedInterface, error) {
-	clients, networks, err := getClientsAndNetworks(s, ctx, bootstrap, peers)
-	if err != nil {
-		return nil, err
-	}
-
-	candidates := make(map[string][]CephDedicatedInterface)
-	for peer, nets := range networks {
-		for _, network := range nets {
-			filtered, addresses := defaultNetworkInterfacesFilter(clients, peer, network)
-			if filtered {
-				continue
-			}
-
-			if len(addresses) == 0 {
-				continue
-			}
-
-			candidates[peer] = append(candidates[peer], CephDedicatedInterface{
-				Name:      network.Name,
-				Type:      network.Type,
-				Addresses: addresses,
-			})
-		}
-	}
-
-	return candidates, nil
 }
 
 // ValidateCephInterfaces validates the given interfaces map against the given Ceph network subnet

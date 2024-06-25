@@ -9,6 +9,8 @@ import (
 
 	"github.com/canonical/microcloud/microcloud/api"
 	"github.com/canonical/microcloud/microcloud/api/types"
+	"github.com/canonical/microcloud/microcloud/cluster"
+	"github.com/canonical/microcloud/microcloud/mdns"
 	"github.com/canonical/microcloud/microcloud/service"
 )
 
@@ -46,6 +48,7 @@ func (c *cmdAdd) Run(cmd *cobra.Command, args []string) error {
 		common:       c.common,
 		asker:        &c.common.asker,
 		systems:      map[string]InitSystem{},
+		state:        map[string]*cluster.SystemInformation{},
 	}
 
 	if c.flagPreseed {
@@ -94,14 +97,72 @@ func (c *cmdAdd) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	cfg.state[cfg.name], err = cluster.CollectSystemInformation(context.Background(), s, mdns.ServerInfo{Name: cfg.name, Address: cfg.address, Services: services})
+	if err != nil {
+		return err
+	}
+
+	for _, system := range cfg.systems {
+		if system.ServerInfo.Name == "" || system.ServerInfo.Name == cfg.name {
+			continue
+		}
+
+		cfg.state[system.ServerInfo.Name], err = cluster.CollectSystemInformation(context.Background(), s, system.ServerInfo)
+		if err != nil {
+			return err
+		}
+	}
+
+	for peer, system := range cfg.systems {
+		system.InitializedServices = cfg.state[peer].ExistingServices
+		cfg.systems[peer] = system
+	}
+
+	// Ensure LXD is not already clustered if we are running `microcloud init`.
+	for name, info := range cfg.state {
+		_, newSystem := cfg.systems[name]
+		if newSystem && info.ServiceClustered(types.LXD) {
+			return fmt.Errorf("%s is already clustered on %q, aborting setup", types.LXD, info.ClusterName)
+		}
+	}
+
+	// Ensure there are no existing cluster conflicts.
+	conflict, serviceType := cluster.ClustersConflict(cfg.state, []types.ServiceType{types.MicroOVN, types.MicroCloud})
+	if conflict {
+		return fmt.Errorf("Some systems are already part of different %s clusters. Aborting initialization", serviceType)
+	}
+
+	// Ask to reuse existing clusters.
+	err = cfg.askClustered(s)
+	if err != nil {
+		return err
+	}
+
 	err = cfg.askDisks(s)
 	if err != nil {
 		return err
 	}
 
-	err = cfg.askNetwork(s)
+	err = cfg.askNetwork2(s)
 	if err != nil {
 		return err
+	}
+
+	for n, s := range cfg.systems {
+		fmt.Printf(`
+				Name: %s
+				Secret: %s
+				InitServs: %v
+				Ceph: %d
+				Subnet: %v
+				Nets: %d
+				TargerNets: %d
+				Storage: %d
+				TargerStorage: %d
+				Joins: %v
+				\n
+			`,
+			n, s.ServerInfo.AuthSecret, s.InitializedServices, len(s.MicroCephDisks), s.MicroCephInternalNetworkSubnet, len(s.Networks), len(s.TargetNetworks), len(s.StoragePools), len(s.TargetStoragePools), s.JoinConfig)
 	}
 
 	return cfg.setupCluster(s)
