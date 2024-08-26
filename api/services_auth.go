@@ -7,6 +7,7 @@ import (
 	"github.com/canonical/lxd/lxd/response"
 	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared/logger"
+	"github.com/canonical/lxd/shared/trust"
 	"github.com/canonical/microcluster/v2/state"
 
 	"github.com/canonical/microcloud/microcloud/service"
@@ -15,8 +16,8 @@ import (
 // endpointHandler is just a convenience for writing clean return types.
 type endpointHandler func(state.State, *http.Request) response.Response
 
-// authHandler ensures a request has been authenticated with the mDNS broadcast secret.
-func authHandler(sh *service.Handler, f endpointHandler) endpointHandler {
+// authHandlerMTLS ensures a request has been authenticated using mTLS.
+func authHandlerMTLS(sh *service.Handler, f endpointHandler) endpointHandler {
 	return func(s state.State, r *http.Request) response.Response {
 		if r.RemoteAddr == "@" {
 			logger.Debug("Allowing unauthenticated request through unix socket")
@@ -25,27 +26,43 @@ func authHandler(sh *service.Handler, f endpointHandler) endpointHandler {
 		}
 
 		// Use certificate based authentication between cluster members.
-		if r.TLS != nil && r.Host == s.Address().URL.Host {
+		if r.TLS != nil {
 			trustedCerts := s.Remotes().CertificatesNative()
 			for _, cert := range r.TLS.PeerCertificates {
+				// First evaluate the permanent turst store.
 				trusted, _ := util.CheckMutualTLS(*cert, trustedCerts)
+				if trusted {
+					return f(s, r)
+				}
+
+				// Second evaluate the temporary trust store.
+				// This is the fallback during the forming of the cluster.
+				trusted, _ = util.CheckMutualTLS(*cert, sh.TemporaryTrustStore())
 				if trusted {
 					return f(s, r)
 				}
 			}
 		}
 
-		secret := r.Header.Get("X-MicroCloud-Auth")
-		if secret == "" {
-			return response.BadRequest(fmt.Errorf("No auth secret in response"))
+		return response.Forbidden(fmt.Errorf("Failed to authenticate using mTLS"))
+	}
+}
+
+// authHandlerHMAC ensures a request has been authenticated using the HMAC in the Authorization header.
+func authHandlerHMAC(sh *service.Handler, f endpointHandler) endpointHandler {
+	return func(s state.State, r *http.Request) response.Response {
+		if !sh.ActiveSession() {
+			return response.BadRequest(fmt.Errorf("No active session"))
 		}
 
-		if sh.AuthSecret == "" {
-			return response.BadRequest(fmt.Errorf("No generated auth secret"))
+		h, err := trust.NewHMACArgon2([]byte(sh.Session.Passphrase()), nil, trust.NewDefaultHMACConf(HMACMicroCloud10))
+		if err != nil {
+			return response.SmartError(err)
 		}
 
-		if sh.AuthSecret != secret {
-			return response.SmartError(fmt.Errorf("Request secret does not match, ignoring request"))
+		err = trust.HMACEqual(h, r)
+		if err != nil {
+			return response.SmartError(err)
 		}
 
 		return f(s, r)
