@@ -13,7 +13,6 @@ import (
 	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared"
 	lxdAPI "github.com/canonical/lxd/shared/api"
-	cli "github.com/canonical/lxd/shared/cmd"
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/canonical/lxd/shared/revert"
 	"github.com/canonical/lxd/shared/validate"
@@ -26,6 +25,7 @@ import (
 	"github.com/canonical/microcloud/microcloud/api"
 	"github.com/canonical/microcloud/microcloud/api/types"
 	cloudClient "github.com/canonical/microcloud/microcloud/client"
+	"github.com/canonical/microcloud/microcloud/cmd/style"
 	"github.com/canonical/microcloud/microcloud/mdns"
 	"github.com/canonical/microcloud/microcloud/service"
 )
@@ -78,7 +78,7 @@ type initConfig struct {
 	common *CmdControl
 
 	// asker is the CLI user input helper.
-	asker *cli.Asker
+	asker *style.Asker
 
 	// address is the cluster address of the local system.
 	address string
@@ -160,7 +160,7 @@ func (c *cmdInit) Run(cmd *cobra.Command, args []string) error {
 		wipeAllDisks:    c.flagWipeAllDisks,
 		encryptAllDisks: c.flagEncryptAllDisks,
 		common:          c.common,
-		asker:           &c.common.asker,
+		asker:           c.common.asker,
 		systems:         map[string]InitSystem{},
 		state:           map[string]service.SystemInformation{},
 	}
@@ -175,7 +175,7 @@ func (c *cmdInit) Run(cmd *cobra.Command, args []string) error {
 
 func (c *initConfig) RunInteractive(cmd *cobra.Command, args []string) error {
 	// Initially restart LXD so that the correct MicroCloud service related state is set by the LXD snap.
-	fmt.Println("Waiting for LXD to start ...")
+	fmt.Println(style.ColorPrintf(style.Format{Arg: "Waiting for LXD to start ...", Color: style.Grey}))
 	lxdService, err := service.NewLXDService("", "", c.common.FlagMicroCloudDir)
 	if err != nil {
 		return err
@@ -187,7 +187,7 @@ func (c *initConfig) RunInteractive(cmd *cobra.Command, args []string) error {
 	}
 
 	if !c.autoSetup {
-		c.setupMany, err = c.common.asker.AskBool("Do you want to set up more than one cluster member? (yes/no) [default=yes]: ", "yes")
+		c.setupMany, err = c.common.asker.AskBool("Do you want to set up more than one cluster member?", "yes")
 		if err != nil {
 			return err
 		}
@@ -241,7 +241,7 @@ func (c *initConfig) RunInteractive(cmd *cobra.Command, args []string) error {
 	}
 
 	c.state[c.name] = *state
-	fmt.Println("Gathering system information ...")
+	fmt.Println(style.ColorPrintf(style.Format{Arg: "Gathering system information ...", Color: style.Grey}))
 	for _, system := range c.systems {
 		if system.ServerInfo.Name == "" || system.ServerInfo.Name == c.name {
 			continue
@@ -336,7 +336,7 @@ func waitForJoin(sh *service.Handler, clusterSizes map[types.ServiceType]int, pe
 		}
 	}
 
-	fmt.Printf(" Peer %q has joined the cluster\n", peer)
+	fmt.Println(style.SummarizeResult("Peer %s has joined the cluster", peer))
 
 	return nil
 }
@@ -427,7 +427,7 @@ func (c *initConfig) addPeers(sh *service.Handler) (revert.Hook, error) {
 		}
 	}
 
-	fmt.Println("Awaiting cluster formation ...")
+	fmt.Println(style.SetColor(style.White, "Awaiting cluster formation ...", true))
 
 	// If the local node needs to join an existing cluster, do it first so we can proceed as normal.
 	if len(joinConfig[sh.Name].Tokens) > 0 {
@@ -613,7 +613,7 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 		}
 	}
 
-	fmt.Println("Initializing new services")
+	fmt.Println(style.SetColor(style.White, "Initializing new services", true))
 	mu := sync.Mutex{}
 	err = s.RunConcurrent(types.MicroCloud, "", func(s service.Service) error {
 		// If there's already an initialized system for this service, we don't need to bootstrap it.
@@ -663,7 +663,7 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 		c.state[s.Name()] = clustered
 		mu.Unlock()
 
-		fmt.Printf(" Local %s is ready\n", s.Type())
+		fmt.Println(style.SummarizeResult("Local %s is ready", s.Type()))
 
 		return nil
 	})
@@ -731,7 +731,7 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 		}
 	}
 
-	fmt.Println("Configuring cluster-wide devices ...")
+	fmt.Println(style.SetColor(style.White, "Configuring cluster-wide devices ...", true))
 
 	var ovnConfig string
 	if s.Services[types.MicroOVN] != nil {
@@ -939,7 +939,7 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 
 	reverter.Success()
 
-	fmt.Println("MicroCloud is ready")
+	fmt.Println(style.SuccessColor("MicroCloud is ready"))
 
 	return nil
 }

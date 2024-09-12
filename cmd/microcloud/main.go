@@ -2,14 +2,12 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 
-	cli "github.com/canonical/lxd/shared/cmd"
-	"github.com/canonical/lxd/shared/logger"
 	"github.com/spf13/cobra"
 
+	"github.com/canonical/microcloud/microcloud/cmd/style"
 	"github.com/canonical/microcloud/microcloud/version"
 )
 
@@ -22,7 +20,7 @@ type CmdControl struct {
 	FlagVersion       bool
 	FlagMicroCloudDir string
 
-	asker cli.Asker
+	asker *style.Asker
 }
 
 func main() {
@@ -33,7 +31,7 @@ func main() {
 	}
 
 	// common flags.
-	commonCmd := CmdControl{asker: cli.NewAsker(bufio.NewReader(os.Stdin), logger.Log)}
+	commonCmd := CmdControl{asker: style.NewAsker()}
 
 	useTestConsole := os.Getenv("TEST_CONSOLE")
 	if useTestConsole == "1" {
@@ -55,7 +53,7 @@ clear                 # clears the last line
 anything else         # will be treated as a raw string. This is useful for filtering a table and text entry
 EOF`)
 
-		commonCmd.asker = prepareTestAsker(os.Stdin)
+		//commonCmd.asker = prepareTestAsker(os.Stdin)
 	}
 
 	app := &cobra.Command{

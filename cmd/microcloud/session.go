@@ -11,6 +11,7 @@ import (
 
 	"github.com/canonical/microcloud/microcloud/api/types"
 	cloudClient "github.com/canonical/microcloud/microcloud/client"
+	"github.com/canonical/microcloud/microcloud/cmd/style"
 	"github.com/canonical/microcloud/microcloud/mdns"
 	"github.com/canonical/microcloud/microcloud/service"
 )
@@ -75,10 +76,21 @@ func (c *initConfig) initiatingSession(gw *cloudClient.WebsocketGateway, sh *ser
 			return fmt.Errorf("Failed to shorten fingerprint: %w", err)
 		}
 
-		fmt.Printf("Use the following command on systems that you want to join the cluster:\n\n microcloud join\n\n")
-		fmt.Printf("When requested enter the passphrase:\n\n %s\n\n", session.Passphrase)
-		fmt.Printf("Verify the fingerprint %q is displayed on joining systems.\n", fingerprint)
-		fmt.Println("Waiting to detect systems ...")
+		template := `Use the following command on systems that you want to join the cluster:
+
+ %s
+
+When requested, enter the passphrase:
+
+ %s
+
+Verify the fingerprint %s is displayed on joining systems.
+`
+
+		cmdArg := style.Format{Arg: "microcloud join", Color: style.Green, Bold: true}
+		passArg := style.Format{Arg: session.Passphrase, Color: style.Green, Bold: true}
+		fingerprintArg := style.Format{Arg: fingerprint, Color: style.Green, Bold: true}
+		fmt.Printf(style.ColorPrintf(style.Format{Arg: template, Color: style.White}, cmdArg, passArg, fingerprintArg))
 	}
 
 	confirmedIntents, err := c.askJoinIntents(gw, expectedSystems)
@@ -128,8 +140,12 @@ func (c *initConfig) initiatingSession(gw *cloudClient.WebsocketGateway, sh *ser
 	}
 
 	if !c.autoSetup {
+		if len(c.systems) > 0 {
+			fmt.Println("")
+		}
+
 		for _, info := range c.systems {
-			fmt.Printf(" Selected %q at %q\n", info.ServerInfo.Name, info.ServerInfo.Address)
+			fmt.Println(style.SummarizeResult("Selected %s at %s", info.ServerInfo.Name, info.ServerInfo.Address))
 		}
 
 		// Add a space between the CLI and the response.
@@ -155,7 +171,7 @@ func (c *initConfig) joiningSession(gw *cloudClient.WebsocketGateway, sh *servic
 	}
 
 	if !c.autoSetup && initiatorAddress == "" {
-		fmt.Println("Searching for an eligible system ...")
+		fmt.Println(style.SetColor(style.White, "Searching for an eligible system ...", true))
 	}
 
 	// The server confirms the target regardless whether or not one was provided.
@@ -169,9 +185,14 @@ func (c *initConfig) joiningSession(gw *cloudClient.WebsocketGateway, sh *servic
 		if err != nil {
 			return err
 		}
+		tmpl := style.SummarizeResult("Found system %s at %s using fingerprint", session.InitiatorName, session.InitiatorAddress)
+		fingerprintArg := style.SetColor(style.Green, fingerprint, true)
+		fmt.Printf("\n%s %s\n\n", tmpl, fingerprintArg)
 
-		fmt.Printf("\n Found system %q at %q using fingerprint %q\n\n", session.InitiatorName, session.InitiatorAddress, fingerprint)
-		fmt.Printf("Select %q on %q to let it join the cluster\n", sh.Name, session.InitiatorName)
+		tmplArg := style.Format{Arg: "Select %s on %s to let it join the cluster", Color: style.White}
+		localArg := style.Format{Arg: sh.Name, Color: style.Orange, Bold: true}
+		remoteArg := style.Format{Arg: session.InitiatorName, Color: style.Orange, Bold: true}
+		fmt.Println(style.ColorPrintf(tmplArg, localArg, remoteArg))
 	}
 
 	return c.askJoinConfirmation(gw)

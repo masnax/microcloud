@@ -20,6 +20,7 @@ import (
 
 	"github.com/canonical/microcloud/microcloud/api/types"
 	cloudClient "github.com/canonical/microcloud/microcloud/client"
+	"github.com/canonical/microcloud/microcloud/cmd/style"
 )
 
 // LXDService is a LXD service.
@@ -632,7 +633,7 @@ func (s *LXDService) ValidateCephInterfaces(cephNetworkSubnetStr string, peerInt
 	}
 
 	if len(data) == 0 {
-		fmt.Println("No network interfaces found with IPs in the specified subnet, skipping Ceph network setup")
+		fmt.Println(style.WarningColor("No network interfaces found with IPs in the specified subnet, skipping Ceph network setup"))
 	}
 
 	return data, nil
