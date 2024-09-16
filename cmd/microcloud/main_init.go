@@ -13,7 +13,6 @@ import (
 	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared"
 	lxdAPI "github.com/canonical/lxd/shared/api"
-	cli "github.com/canonical/lxd/shared/cmd"
 	"github.com/canonical/lxd/shared/logger"
 	"github.com/canonical/lxd/shared/revert"
 	"github.com/canonical/lxd/shared/validate"
@@ -26,6 +25,7 @@ import (
 	"github.com/canonical/microcloud/microcloud/api"
 	"github.com/canonical/microcloud/microcloud/api/types"
 	cloudClient "github.com/canonical/microcloud/microcloud/client"
+	"github.com/canonical/microcloud/microcloud/cmd/tui"
 	"github.com/canonical/microcloud/microcloud/mdns"
 	"github.com/canonical/microcloud/microcloud/service"
 )
@@ -78,7 +78,7 @@ type initConfig struct {
 	common *CmdControl
 
 	// asker is the CLI user input helper.
-	asker *cli.Asker
+	asker *tui.InputHandler
 
 	// address is the cluster address of the local system.
 	address string
@@ -157,7 +157,7 @@ func (c *cmdInit) Run(cmd *cobra.Command, args []string) error {
 		wipeAllDisks:    c.flagWipeAllDisks,
 		encryptAllDisks: c.flagEncryptAllDisks,
 		common:          c.common,
-		asker:           &c.common.asker,
+		asker:           c.common.asker,
 		systems:         map[string]InitSystem{},
 		state:           map[string]service.SystemInformation{},
 	}
@@ -183,7 +183,7 @@ func (c *initConfig) RunInteractive(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	c.setupMany, err = c.common.asker.AskBool("Do you want to set up more than one cluster member? (yes/no) [default=yes]: ", "yes")
+	c.setupMany, err = c.common.asker.AskBool("Do you want to set up more than one cluster member?", true)
 	if err != nil {
 		return err
 	}
@@ -330,6 +330,8 @@ func waitForJoin(sh *service.Handler, clusterSizes map[types.ServiceType]int, pe
 			}
 		}
 	}
+
+	fmt.Println(tui.SummarizeResult("Peer %s has joined the cluster", peer))
 
 	return nil
 }
@@ -657,7 +659,7 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 		}
 	}
 
-	fmt.Println("Initializing new services")
+	fmt.Println("Initializing new services ...")
 	mu := sync.Mutex{}
 	err = s.RunConcurrent(types.MicroCloud, "", func(s service.Service) error {
 		// If there's already an initialized system for this service, we don't need to bootstrap it.
@@ -707,7 +709,7 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 		c.state[s.Name()] = clustered
 		mu.Unlock()
 
-		fmt.Printf(" Local %s is ready\n", s.Type())
+		fmt.Println(tui.SummarizeResult("Local %s is ready", s.Type()))
 
 		return nil
 	})
@@ -983,7 +985,7 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 
 	reverter.Success()
 
-	fmt.Println("MicroCloud is ready")
+	fmt.Println(tui.SuccessColor("MicroCloud is ready", true))
 
 	return nil
 }
