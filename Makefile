@@ -9,6 +9,11 @@ build:
 	go install -tags=agent -v ./cmd/microcloud
 	go install -tags=agent -v ./cmd/microcloudd
 
+.PHONY: build-test
+build-test:
+	go install -tags=test -v ./cmd/microcloud
+	go install -tags=test -v ./cmd/microcloudd
+
 # Testing targets.
 .PHONY: check
 check: check-static check-unit check-system
