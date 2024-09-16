@@ -55,6 +55,12 @@ func (i *InputHandler) getAllRows() [][]string {
 	return i.table.rawRows
 }
 
+// AskBoolErr is the same as AskBool but it appends "⨯ Error:" to the front of the message.
+func (i *InputHandler) AskBoolErr(question string, defaultAnswer bool) (bool, error) {
+	question = fmt.Sprintf("%s %s: %s", ErrorSymbol(), ErrorColor("Error", true), question)
+	return i.AskBool(question, defaultAnswer)
+}
+
 // AskBoolWarn is the same as AskBool but it appends "! Warning:" to the front of the message.
 func (i *InputHandler) AskBoolWarn(question string, defaultAnswer bool) (bool, error) {
 	question = fmt.Sprintf("%s %s: %s", WarningSymbol(), WarningColor("Warning", true), question)
@@ -84,6 +90,12 @@ func (i *InputHandler) AskBool(question string, defaultAnswer bool) (bool, error
 	}
 
 	return false, fmt.Errorf("Response %q must be one of %v", result.answer, result.acceptedAnswers)
+}
+
+// AskStringWarn is the same as AskString but it appends "! Warning:" to the front of the message.
+func (i *InputHandler) AskStringWarn(question string, defaultAnswer string, validator func(string) error) (string, error) {
+	question = fmt.Sprintf("%s %s: %s", WarningSymbol(), WarningColor("Warning", true), question)
+	return i.AskString(question, defaultAnswer, validator)
 }
 
 // AskString prints the given prompt and accepts a string answer. If no answer is provided, it uses the default answer.
