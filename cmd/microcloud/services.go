@@ -85,7 +85,7 @@ func (c *cmdServiceList) Run(cmd *cobra.Command, args []string) error {
 	cfg := initConfig{
 		bootstrap: false,
 		common:    c.common,
-		asker:     &c.common.asker,
+		asker:     c.common.asker,
 		systems:   map[string]InitSystem{},
 		state:     map[string]service.SystemInformation{},
 	}
@@ -211,7 +211,7 @@ func (c *cmdServiceAdd) Run(cmd *cobra.Command, args []string) error {
 		bootstrap: true,
 		setupMany: true,
 		common:    c.common,
-		asker:     &c.common.asker,
+		asker:     c.common.asker,
 		systems:   map[string]InitSystem{},
 		state:     map[string]service.SystemInformation{},
 	}

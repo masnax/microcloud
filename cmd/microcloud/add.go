@@ -45,7 +45,7 @@ func (c *cmdAdd) Run(cmd *cobra.Command, args []string) error {
 		setupMany:    true,
 		wipeAllDisks: c.flagWipe,
 		common:       c.common,
-		asker:        &c.common.asker,
+		asker:        c.common.asker,
 		systems:      map[string]InitSystem{},
 		state:        map[string]service.SystemInformation{},
 	}
