@@ -8,13 +8,19 @@ test_interactive() {
   echo "Creating a MicroCloud with all services but no devices"
   export MULTI_NODE="yes"
   export LOOKUP_IFACE="enp5s0"
-  export LIMIT_SUBNET="yes"
   export EXPECT_PEERS=2
   export SETUP_ZFS="no"
   export SETUP_CEPH="no"
   export SETUP_OVN="no"
   export CEPH_CLUSTER_NETWORK="${microcloud_internal_net_addr}"
+
+  microcloud_join "micro02" &
+  pid1="$!"
+  microcloud_join "micro03" &
+  pid2="$!"
   microcloud_interactive | lxc exec micro01 -- sh -c "microcloud init > out"
+  wait "${pid1}"
+  wait "${pid2}"
 
   lxc exec micro01 -- tail -1 out | grep "MicroCloud is ready" -q
   for m in micro01 micro02 micro03 ; do
@@ -41,7 +47,13 @@ test_interactive() {
   export ZFS_WIPE="yes"
   export CEPH_CLUSTER_NETWORK="${microcloud_internal_net_addr}"
   unset SETUP_CEPH SETUP_OVN
+  microcloud_join "micro02" &
+  pid1="$!"
+  microcloud_join "micro03" &
+  pid2="$!"
   microcloud_interactive | lxc exec micro01 -- sh -c "microcloud init > out"
+  wait "${pid1}"
+  wait "${pid2}"
 
   lxc exec micro01 -- tail -1 out | grep "MicroCloud is ready" -q
   for m in micro01 micro02 micro03 ; do
@@ -59,7 +71,13 @@ test_interactive() {
   done
 
   echo "Creating a MicroCloud with ZFS storage and no IPv6 support"
+  microcloud_join "micro02" &
+  pid1="$!"
+  microcloud_join "micro03" &
+  pid2="$!"
   microcloud_interactive | lxc exec micro01 -- sh -c "microcloud init > out"
+  wait "${pid1}"
+  wait "${pid2}"
 
   lxc exec micro01 -- tail -1 out | grep "MicroCloud is ready" -q
   for m in micro01 micro02 micro03 ; do
@@ -81,7 +99,12 @@ test_interactive() {
   unset LOOKUP_IFACE
   export PROCEED_WITH_NO_OVERLAY_NETWORKING="no" # This will avoid to setup the cluster if no overlay networking is available.
   echo "Creating a MicroCloud with ZFS storage and no IPv4 support"
+  microcloud_join "micro02" "err" &
+  pid1="$!"
+  microcloud_join "micro03" "err" &
+  pid2="$!"
   ! microcloud_interactive | lxc exec micro01 -- sh -c "microcloud init 2> err" || false
+  pkill "${pid1}" "${pid2}" || true
 
   # Ensure we error out due to a lack of usable overlay networking.
   lxc exec micro01 -- cat err | grep "Cluster bootstrapping aborted due to lack of usable networking" -q
@@ -108,7 +131,13 @@ test_interactive() {
   export CEPH_WIPE="yes"
   export CEPH_CLUSTER_NETWORK="${microcloud_internal_net_addr}"
   export CEPH_ENCRYPT="no"
+  microcloud_join "micro02" &
+  pid1="$!"
+  microcloud_join "micro03" &
+  pid2="$!"
   microcloud_interactive | lxc exec micro01 -- sh -c "microcloud init > out"
+  wait "${pid1}"
+  wait "${pid2}"
 
   lxc exec micro01 -- tail -1 out | grep "MicroCloud is ready" -q
   for m in micro01 micro02 micro03 ; do
@@ -138,7 +167,13 @@ test_interactive() {
   export DNS_ADDRESSES="10.1.123.1,8.8.8.8"
   export CEPH_CLUSTER_NETWORK="${microcloud_internal_net_addr}"
   export OVN_UNDERLAY_NETWORK="no"
+  microcloud_join "micro02" &
+  pid1="$!"
+  microcloud_join "micro03" &
+  pid2="$!"
   microcloud_interactive | lxc exec micro01 -- sh -c "microcloud init > out"
+  wait "${pid1}"
+  wait "${pid2}"
 
   lxc exec micro01 -- tail -1 out | grep "MicroCloud is ready" -q
   for m in micro01 micro02 micro03 ; do
@@ -159,7 +194,13 @@ test_interactive() {
   export CEPH_WIPE="yes"
   export CEPH_CLUSTER_NETWORK="${microcloud_internal_net_addr}"
   export CEPH_ENCRYPT="no"
+  microcloud_join "micro02" &
+  pid1="$!"
+  microcloud_join "micro03" &
+  pid2="$!"
   microcloud_interactive | lxc exec micro01 -- sh -c "microcloud init > out"
+  wait "${pid1}"
+  wait "${pid2}"
 
   lxc exec micro01 -- tail -1 out | grep "MicroCloud is ready" -q
   for m in micro01 micro02 micro03 ; do
@@ -173,7 +214,13 @@ test_interactive() {
 
   echo "Creating a MicroCloud with ZFS and Ceph storage, and OVN network with Ceph encryption"
   export CEPH_ENCRYPT="yes"
+  microcloud_join "micro02" &
+  pid1="$!"
+  microcloud_join "micro03" &
+  pid2="$!"
   microcloud_interactive | lxc exec micro01 -- sh -c "microcloud init > out"
+  wait "${pid1}"
+  wait "${pid2}"
 
   lxc exec micro01 -- tail -1 out | grep "MicroCloud is ready" -q
   for m in micro01 micro02 micro03 ; do
@@ -209,7 +256,13 @@ test_interactive() {
   export IPV4_START="10.1.123.100"
   export IPV4_END="10.1.123.254"
   export OVN_UNDERLAY_NETWORK="no"
+  microcloud_join "micro02" &
+  pid1="$!"
+  microcloud_join "micro03" &
+  pid2="$!"
   microcloud_interactive | lxc exec micro01 -- sh -c "microcloud init > out"
+  wait "${pid1}"
+  wait "${pid2}"
 
   lxc exec micro01 -- tail -1 out | grep "MicroCloud is ready" -q
   for m in micro01 micro02 micro03 ; do
@@ -240,7 +293,13 @@ test_interactive() {
   export CEPH_CLUSTER_NETWORK="${ceph_cluster_subnet_prefix}.0/24"
   export OVN_UNDERLAY_NETWORK="yes"
   export OVN_UNDERLAY_FILTER="${ovn_underlay_subnet_prefix}"
+  microcloud_join "micro02" &
+  pid1="$!"
+  microcloud_join "micro03" &
+  pid2="$!"
   microcloud_interactive | lxc exec micro01 -- sh -c "microcloud init > out"
+  wait "${pid1}"
+  wait "${pid2}"
 
   lxc exec micro01 -- tail -1 out | grep "MicroCloud is ready" -q
   for m in micro01 micro02 micro03 ; do
@@ -279,7 +338,10 @@ test_interactive() {
   export SETUP_OVN="no"
 
   # Run a 2 nodes MicroCloud without MicroOVN first.
+  microcloud_join "micro02" &
+  pid1="$!"
   microcloud_interactive | lxc exec micro01 -- sh -c "microcloud init > out"
+  wait "${pid1}"
 
   lxc exec micro01 -- tail -1 out | grep "MicroCloud is ready" -q
   for m in micro01 micro02 ; do
@@ -310,7 +372,10 @@ test_interactive() {
   export DNS_ADDRESSES="10.1.123.1,8.8.8.8"
   export IPV6_SUBNET="fd42:1:1234:1234::1/64"
   export REPLACE_PROFILE="yes"
+  microcloud_join "micro03" &
+  pid1="$!"
   microcloud_interactive | lxc exec micro01 -- sh -c "microcloud add > out"
+  wait "${pid1}"
 
   for m in micro01 micro02 micro03 ; do
     validate_system_lxd "${m}" 3 disk1 0 0 "${OVN_FILTER}" "${IPV4_SUBNET}" "${IPV4_START}"-"${IPV4_END}" "${IPV6_SUBNET}"

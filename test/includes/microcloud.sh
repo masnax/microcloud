@@ -2,11 +2,54 @@
 
 # unset_interactive_vars: Unsets all variables related to the test console.
 unset_interactive_vars() {
-  unset SKIP_LOOKUP LOOKUP_IFACE LIMIT_SUBNET SKIP_SERVICE EXPECT_PEERS PEERS_FILTER REUSE_EXISTING REUSE_EXISTING_COUNT \
+  unset SKIP_LOOKUP LOOKUP_IFACE SKIP_SERVICE EXPECT_PEERS PEERS_FILTER REUSE_EXISTING REUSE_EXISTING_COUNT \
     SETUP_ZFS ZFS_FILTER ZFS_WIPE \
     SETUP_CEPH CEPH_MISSING_DISKS CEPH_FILTER CEPH_WIPE CEPH_ENCRYPT SETUP_CEPHFS CEPH_CLUSTER_NETWORK \
     PROCEED_WITH_NO_OVERLAY_NETWORKING SETUP_OVN OVN_UNDERLAY_NETWORK OVN_UNDERLAY_FILTER OVN_WARNING OVN_FILTER IPV4_SUBNET IPV4_START IPV4_END DNS_ADDRESSES IPV6_SUBNET \
     REPLACE_PROFILE CEPH_RETRY_HA MULTI_NODE
+}
+
+microcloud_join() {
+  local setup
+  local enable_xtrace
+  local name="${1:-}"
+  local err="${2:-}"
+
+  enable_xtrace=0
+
+  if set -o | grep -q "xtrace.*on" ; then
+    enable_xtrace=1
+    set +x
+  fi
+
+  SKIP_SERVICE=${SKIP_SERVICE:-}                 # (yes/no) input to skip any missing services. Should be unset if all services are installed.
+  JOIN_LOOKUP_IFACE=${LOOKUP_IFACE:-}                 # filter string for the lookup interface table.
+  if [ -n "${JOIN_LOOKUP_IFACE}" ]; then
+    JOIN_LOOKUP_IFACE="table:filter ${JOIN_LOOKUP_IFACE}"
+  fi
+
+  setup="
+${JOIN_LOOKUP_IFACE}                                         # filter the lookup interface
+$([ -n "${JOIN_LOOKUP_IFACE}" ] && printf "table:select")          # select the interface
+$([ -n "${JOIN_LOOKUP_IFACE}" ] && printf -- "table:done")
+$([ "${SKIP_SERVICE}" = "yes" ] && printf "%s" "${SKIP_SERVICE}")  # skip MicroOVN/MicroCeph (yes/no)
+a a a a
+$(true)
+"
+
+  # clear comments and empty lines.
+  setup="$(echo "${setup}" | sed '/^\s*#/d; s/\s*#.*//; /^$/d')"
+
+  if [ -n "${err}" ]; then
+    echo "${setup}" | tee /dev/stderr | lxc exec "${name}" -- sh -c 'microcloud join 2> err' || false
+  else
+    echo "${setup}" | tee /dev/stderr | lxc exec "${name}" -- sh -c 'microcloud join > out'
+    lxc exec "${name}" -- cat out | grep -q "Commencing cluster join of the remaining services"
+  fi
+
+  if [ ${enable_xtrace} = 1 ]; then
+    set -x
+  fi
 }
 
 # microcloud_interactive: outputs text that can be passed to `TEST_CONSOLE=1 microcloud init`
@@ -14,6 +57,7 @@ unset_interactive_vars() {
 # The lines that are output are based on the values passed to the listed environment variables.
 # Any unset variables will be omitted.
 microcloud_interactive() {
+  local setup
   enable_xtrace=0
 
   if set -o | grep -q "xtrace.*on" ; then
@@ -24,7 +68,6 @@ microcloud_interactive() {
   MULTI_NODE=${MULTI_NODE:-}                     # (yes/no) whether to set up multiple nodes
   SKIP_LOOKUP=${SKIP_LOOKUP:-}                   # whether or not to skip the whole lookup block in the interactive command list.
   LOOKUP_IFACE=${LOOKUP_IFACE:-}                 # filter string for the lookup interface table.
-  LIMIT_SUBNET=${LIMIT_SUBNET:-}                 # (yes/no) input for limiting lookup of systems to the above subnet.
   SKIP_SERVICE=${SKIP_SERVICE:-}                 # (yes/no) input to skip any missing services. Should be unset if all services are installed.
   EXPECT_PEERS=${EXPECT_PEERS:-}                 # wait for this number of systems to be available to join the cluster.
   PEERS_FILTER=${PEERS_FILTER:-}                 # filter string for the particular peer to init/add
@@ -54,25 +97,52 @@ microcloud_interactive() {
   IPV6_SUBNET=${IPV6_SUBNET:-}                    # OVN ipv6 range.
   REPLACE_PROFILE="${REPLACE_PROFILE:-}"          # Replace default profile config and devices.
 
+  if [ -n "${LOOKUP_IFACE}" ]; then
+    LOOKUP_IFACE="table:filter ${LOOKUP_IFACE}"
+  fi
+
+  if [ -n "${PEERS_FILTER}" ]; then
+    PEERS_FILTER="table:filter ${PEERS_FILTER}"
+  fi
+
+  if [ -n "${ZFS_FILTER}" ]; then
+    ZFS_FILTER="table:filter ${ZFS_FILTER}"
+  fi
+
+  if [ -n "${CEPH_FILTER}" ]; then
+    CEPH_FILTER="table:filter ${CEPH_FILTER}"
+  fi
+
+  if [ -n "${CEPH_FILTER}" ]; then
+    CEPH_FILTER="table:filter ${CEPH_FILTER}"
+  fi
+
+  if [ -n "${OVN_FILTER}" ]; then
+    OVN_FILTER="table:filter ${OVN_FILTER}"
+  fi
+
+  if [ -n "${OVN_UNDERLAY_FILTER}" ]; then
+    OVN_UNDERLAY_FILTER="table:filter ${OVN_UNDERLAY_FILTER}"
+  fi
+
   setup=""
   if [ -n "${MULTI_NODE}" ]; then
     setup="
 ${MULTI_NODE}                                           # lookup multiple nodes
 ${LOOKUP_IFACE}                                         # filter the lookup interface
-$([ -n "${LOOKUP_IFACE}" ] && printf "select")          # select the interface
-$([ -n "${LOOKUP_IFACE}" ] && printf -- "---")
+$([ -n "${LOOKUP_IFACE}" ] && printf "table:select")          # select the interface
+$([ -n "${LOOKUP_IFACE}" ] && printf -- "table:done")
 $(true)
 "
   fi
 
   if ! [ "${SKIP_LOOKUP}" = 1 ]; then
     setup="${setup}
-${LIMIT_SUBNET}                                             # limit lookup subnet (yes/no)
 $([ "${SKIP_SERVICE}" = "yes" ] && printf "%s" "${SKIP_SERVICE}")  # skip MicroOVN/MicroCeph (yes/no)
-expect ${EXPECT_PEERS}                                      # wait until the systems show up
+table:expect ${EXPECT_PEERS}                                      # wait until the systems show up
 ${PEERS_FILTER}                                             # filter discovered peers
-select-all                                                  # select all the systems
----
+table:select-all                                                  # select all the systems
+table:done
 $(true)                                                 # workaround for set -e
 "
   fi
@@ -90,12 +160,12 @@ fi
 if [ -n "${SETUP_ZFS}" ]; then
   setup="${setup}
 ${SETUP_ZFS}                                            # add local disks (yes/no)
-$([ "${SETUP_ZFS}" = "yes" ] && printf "wait 300ms")    # wait for the table to populate
+$([ "${SETUP_ZFS}" = "yes" ] && printf "table:wait 300ms")    # wait for the table to populate
 ${ZFS_FILTER}                                           # filter zfs disks
-$([ "${SETUP_ZFS}" = "yes" ] && printf "select-all")    # select all disk matching the filter
-$([ "${SETUP_ZFS}" = "yes" ] && printf -- "---" )
-$([ "${ZFS_WIPE}"  = "yes" ] && printf "select-all")    # wipe all disks
-$([ "${SETUP_ZFS}" = "yes" ] && printf -- "---")
+$([ "${SETUP_ZFS}" = "yes" ] && printf "table:select-all")    # select all disk matching the filter
+$([ "${SETUP_ZFS}" = "yes" ] && printf -- "table:done" )
+$([ "${ZFS_WIPE}"  = "yes" ] && printf "table:select-all")    # wipe all disks
+$([ "${SETUP_ZFS}" = "yes" ] && printf -- "table:done")
 $(true)                                                 # workaround for set -e
 "
 fi
@@ -104,12 +174,12 @@ if [ -n "${SETUP_CEPH}" ]; then
   setup="${setup}
 ${SETUP_CEPH}                                           # add remote disks (yes/no)
 ${CEPH_MISSING_DISKS}                                   # continue with some peers missing disks? (yes/no)
-$([ "${SETUP_CEPH}" = "yes" ] && printf "wait 300ms")   # wait for the table to populate
+$([ "${SETUP_CEPH}" = "yes" ] && printf "table:wait 300ms")   # wait for the table to populate
 ${CEPH_FILTER}                                          # filter ceph disks
-$([ "${SETUP_CEPH}" = "yes" ] && printf "select-all")   # select all disk matching the filter
-$([ "${SETUP_CEPH}" = "yes" ] && printf -- "---")
-$([ "${CEPH_WIPE}"  = "yes" ] && printf "select-all")   # wipe all disks
-$([ "${SETUP_CEPH}" = "yes" ] && printf -- "---")
+$([ "${SETUP_CEPH}" = "yes" ] && printf "table:select-all")   # select all disk matching the filter
+$([ "${SETUP_CEPH}" = "yes" ] && printf -- "table:done")
+$([ "${CEPH_WIPE}"  = "yes" ] && printf "table:select-all")   # wipe all disks
+$([ "${SETUP_CEPH}" = "yes" ] && printf -- "table:done")
 $([ "${SETUP_CEPH}" = "yes" ] && printf "%s" "${CEPH_RETRY_HA}" ) # allow ceph setup without 3 systems supplying disks.
 ${CEPH_ENCRYPT}                                         # encrypt disks? (yes/no)
 ${SETUP_CEPHFS}
@@ -129,10 +199,10 @@ if [ -n "${SETUP_OVN}" ]; then
   setup="${setup}
 ${SETUP_OVN}                                           # agree to setup OVN
 ${OVN_WARNING}                                         # continue with some peers missing an interface? (yes/no)
-$([ "${SETUP_OVN}" = "yes" ] && printf "wait 300ms")   # wait for the table to populate
+$([ "${SETUP_OVN}" = "yes" ] && printf "table:wait 300ms")   # wait for the table to populate
 ${OVN_FILTER}                                          # filter interfaces
-$([ "${SETUP_OVN}" = "yes" ] && printf "select-all")   # select all interfaces matching the filter
-$([ "${SETUP_OVN}" = "yes" ] && printf -- "---")
+$([ "${SETUP_OVN}" = "yes" ] && printf "table:select-all")   # select all interfaces matching the filter
+$([ "${SETUP_OVN}" = "yes" ] && printf -- "table:done")
 ${IPV4_SUBNET}                                         # setup ipv4/ipv6 gateways and ranges
 ${IPV4_START}
 ${IPV4_END}
@@ -144,10 +214,10 @@ $(true)                                                 # workaround for set -e
   if [ -n "${OVN_UNDERLAY_NETWORK}" ]; then
     setup="${setup}
 ${OVN_UNDERLAY_NETWORK}
-$([ "${OVN_UNDERLAY_NETWORK}" = "yes" ] && printf "wait 300ms")
+$([ "${OVN_UNDERLAY_NETWORK}" = "yes" ] && printf "table:wait 300ms")
 ${OVN_UNDERLAY_FILTER}
-$([ "${OVN_UNDERLAY_NETWORK}" = "yes" ] && printf "select-all")
-$([ "${OVN_UNDERLAY_NETWORK}" = "yes" ] && printf -- "---")
+$([ "${OVN_UNDERLAY_NETWORK}" = "yes" ] && printf "table:select-all")
+$([ "${OVN_UNDERLAY_NETWORK}" = "yes" ] && printf -- "table:done")
 $(true)                                                 # workaround for set -e
 "
   fi
@@ -268,7 +338,7 @@ validate_system_microceph() {
       done
 
      query='{\"query\": \"select count(*) from disks join core_cluster_members on core_cluster_members.id = disks.member_id where core_cluster_members.name = \\\"${name}\\\"\"}'
-     count_disks=\$(curl --unix-socket /var/snap/microceph/common/state/control.socket ./cluster/internal/sql -X POST -d \"\${query}\" -s)
+     count_disks=\$(curl --unix-socket /var/snap/microceph/common/state/control.socket ./core/internal/sql -X POST -d \"\${query}\" -s)
      echo \"\${count_disks}\" | jq '.status_code' | grep -q 200
      echo \"\${count_disks}\" | jq '.metadata .Results[0] .rows[0][0]' | grep -q \${count}
     "
@@ -860,7 +930,7 @@ restore_systems() {
 
     for i in $(seq 1 "${num_extra_ifaces}") ; do
       network="microbr$((i - 1))"
-      lxc profile device remove default "eth${i}"
+      lxc profile device remove default "eth${i}" || true
       lxc network delete "${network}" || true
       lxc network create "${network}" \
         ipv4.address="10.${i}.123.1/24" ipv4.dhcp=false ipv4.nat=true \
@@ -881,10 +951,20 @@ restore_systems() {
 
   wait
 
+  sleep 5
+
+  for n in $(seq -f "%02g" 1 "${num_vms}") ; do
+    name="micro${n}"
+    set_debug_binaries "${name}"
+    lxc exec "${name}" --  timedatectl set-ntp off
+    lxc exec "${name}" --  timedatectl set-ntp on
+  done
+
   echo "::endgroup::"
 }
 
 restore_system() {
+  set -x
   name="${1}"
   shift 1
 
@@ -1003,11 +1083,11 @@ setup_lxd_project() {
 
     # Create a zfs pool so we can use fast snapshots.
     if [ -z "${TEST_STORAGE_SOURCE:-}" ]; then
-      lxc storage create zpool zfs volume.size=5GiB
+      lxc storage create zpool dir volume.size=5GiB
     else
       sudo wipefs --all --quiet "${TEST_STORAGE_SOURCE}"
       sudo blkdiscard "${TEST_STORAGE_SOURCE}" || true
-      lxc storage create zpool zfs source="${TEST_STORAGE_SOURCE}"
+      lxc storage create zpool dir source="${TEST_STORAGE_SOURCE}"
     fi
 
     # Setup default profile
