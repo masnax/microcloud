@@ -11,6 +11,11 @@ import (
 )
 
 func setupAsker(ctx context.Context) (*tui.InputHandler, error) {
+	noColor := os.Getenv("NO_COLOR")
+	if noColor != "" {
+		tui.DisableColors()
+	}
+
 	useTestConsole := os.Getenv("TEST_CONSOLE")
 	if useTestConsole != "1" {
 		return tui.NewInputHandler(os.Stdin, os.Stdout), nil

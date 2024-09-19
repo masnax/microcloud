@@ -19,6 +19,7 @@ type CmdControl struct {
 
 	FlagHelp          bool
 	FlagVersion       bool
+	FlagNoColor       bool
 	FlagMicroCloudDir string
 
 	asker *tui.InputHandler
@@ -47,11 +48,17 @@ func main() {
 		Version:           version.Version,
 		SilenceUsage:      true,
 		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			if commonCmd.FlagNoColor {
+				tui.DisableColors()
+			}
+		},
 	}
 
 	app.PersistentFlags().StringVar(&commonCmd.FlagMicroCloudDir, "state-dir", "", "Path to store MicroCloud state information"+"``")
 	app.PersistentFlags().BoolVarP(&commonCmd.FlagHelp, "help", "h", false, "Print help")
 	app.PersistentFlags().BoolVar(&commonCmd.FlagVersion, "version", false, "Print version number")
+	app.PersistentFlags().BoolVar(&commonCmd.FlagNoColor, "no-color", false, "Disable colorization of the CLI")
 
 	app.SetVersionTemplate("{{.Version}}\n")
 

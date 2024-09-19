@@ -8,14 +8,12 @@ import (
 
 	"github.com/canonical/microcluster/v2/microcluster"
 	microTypes "github.com/canonical/microcluster/v2/rest/types"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/lipgloss/table"
 	"github.com/spf13/cobra"
 
 	"github.com/canonical/microcloud/microcloud/api"
 	"github.com/canonical/microcloud/microcloud/api/types"
 	"github.com/canonical/microcloud/microcloud/client"
-	"github.com/canonical/microcloud/microcloud/cmd/style"
+	"github.com/canonical/microcloud/microcloud/cmd/tui"
 	"github.com/canonical/microcloud/microcloud/service"
 )
 
@@ -64,11 +62,11 @@ const (
 func (s StatusLevel) Symbol() string {
 	switch s {
 	case Success:
-		return style.SuccessSymbol()
+		return tui.SuccessSymbol()
 	case Warn:
-		return style.WarningSymbol()
+		return tui.WarningSymbol()
 	case Error:
-		return style.ErrorSymbol()
+		return tui.ErrorSymbol()
 	}
 
 	return ""
@@ -78,11 +76,11 @@ func (s StatusLevel) Symbol() string {
 func (s StatusLevel) String() string {
 	switch s {
 	case Success:
-		return style.SuccessColor("HEALTHY")
+		return tui.SuccessColor("HEALTHY", true)
 	case Warn:
-		return style.WarningColor("WARNING")
+		return tui.WarningColor("WARNING", true)
 	case Error:
-		return style.ErrorColor("ERROR")
+		return tui.ErrorColor("ERROR", true)
 	}
 
 	return ""
@@ -125,7 +123,7 @@ func (c *cmdStatus) Run(cmd *cobra.Command, args []string) error {
 		autoSetup: true,
 		bootstrap: false,
 		common:    c.common,
-		asker:     &c.common.asker,
+		asker:     c.common.asker,
 		systems:   map[string]InitSystem{},
 		state:     map[string]service.SystemInformation{},
 	}
@@ -145,7 +143,7 @@ func (c *cmdStatus) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	// Instantiate a handler for the services.
-	sh, err := service.NewHandler(status.Name, status.Address.Addr().String(), c.common.FlagMicroCloudDir, c.common.FlagLogDebug, c.common.FlagLogVerbose, services...)
+	sh, err := service.NewHandler(status.Name, status.Address.Addr().String(), c.common.FlagMicroCloudDir, services...)
 	if err != nil {
 		return err
 	}
@@ -166,15 +164,15 @@ func (c *cmdStatus) Run(cmd *cobra.Command, args []string) error {
 
 	// Print the warning summary, and all warnings.
 	fmt.Println("")
-	fmt.Printf(" %s: %s\n", style.TextColor("Status"), warnings.Status().String())
+	fmt.Printf(" %s: %s\n", tui.SetColor(tui.Bright, "Status", true), warnings.Status().String())
 	fmt.Println("")
 	for _, w := range warnings {
-		fmt.Printf(" %s %s %s\n", style.TableBorderColor("┃"), w.Level.Symbol(), w.Message)
+		fmt.Printf(" %s %s %s\n", tui.SetColor(tui.Bright, "┃", true), w.Level.Symbol(), w.Message)
 	}
 
 	fmt.Println("")
 
-	headers := []string{"Name", "Address", "OSD Disks", "MicroCeph Services", "MicroOVN Services", "Status"}
+	headers := []string{"Name", "Address", "OSD Disks", "MicroCeph Units", "MicroOVN Units", "Status"}
 
 	var localStatus types.Status
 	for _, s := range statuses {
@@ -189,24 +187,8 @@ func (c *cmdStatus) Run(cmd *cobra.Command, args []string) error {
 		rows = append(rows, formatStatusRow(localStatus, s))
 	}
 
-	t := table.New()
-	t = t.Headers(headers...)
-	t = t.Rows(rows...)
-	t = t.Border(lipgloss.NormalBorder())
-	t = t.BorderStyle(lipgloss.NewStyle().Foreground(lipgloss.Color(style.DarkGrey)))
-	t = t.StyleFunc(func(row, col int) lipgloss.Style {
-		s := lipgloss.NewStyle()
-		s = s.Padding(0, 1)
-
-		if row == 0 {
-			headers[col] = style.TableHeaderColor(headers[col])
-		}
-
-		return s
-	})
-
 	// Print the table.
-	fmt.Println(t.String())
+	fmt.Println(tui.NewTable(headers, rows))
 
 	return nil
 }
@@ -301,29 +283,29 @@ func compileWarnings(name string, statuses []types.Status) Warnings {
 	// Format the actual warnings based on the collected data.
 	warnings := Warnings{}
 	if clusterSize < 3 {
-		tmpl := style.Format{Color: style.White, Arg: "%s: %d systems are required for effective fault tolerance"}
-		msg := style.ColorPrintf(tmpl,
-			style.Format{Color: style.Red, Arg: "Reliability risk"},
-			style.Format{Color: style.Purple, Arg: 3},
+		tmpl := tui.Fmt{Arg: "%s: %d systems are required for effective fault tolerance"}
+		msg := tui.Printf(tmpl,
+			tui.Fmt{Color: tui.Red, Arg: "Reliability risk", Bold: true},
+			tui.Fmt{Color: tui.Bright, Arg: 3, Bold: true},
 		)
 
 		warnings = append(warnings, Warning{Level: Error, Message: msg})
 	}
 
 	if osdCount < 3 && osdsConfigured {
-		tmpl := style.Format{Color: style.White, Arg: "%s: MicroCeph OSD replication recommends at least %d disks across %d systems"}
-		msg := style.ColorPrintf(tmpl,
-			style.Format{Color: style.Red, Arg: "Data loss risk"},
-			style.Format{Color: style.Purple, Arg: 3},
-			style.Format{Color: style.Purple, Arg: 3},
+		tmpl := tui.Fmt{Arg: "%s: MicroCeph OSD replication recommends at least %d disks across %d systems"}
+		msg := tui.Printf(tmpl,
+			tui.Fmt{Color: tui.Red, Arg: "Data loss risk", Bold: true},
+			tui.Fmt{Color: tui.Bright, Arg: 3, Bold: true},
+			tui.Fmt{Color: tui.Bright, Arg: 3, Bold: true},
 		)
 
 		warnings = append(warnings, Warning{Level: Error, Message: msg})
 	}
 
 	if len(uninstalledServices[types.LXD]) > 0 {
-		tmpl := style.Format{Color: style.White, Arg: "LXD is not installed on %s"}
-		msg := style.ColorPrintf(tmpl, style.Format{Color: style.Purple, Arg: strings.Join(uninstalledServices[types.LXD], ", ")})
+		tmpl := tui.Fmt{Arg: "LXD is not installed on %s"}
+		msg := tui.Printf(tmpl, tui.Fmt{Color: tui.Bright, Arg: strings.Join(uninstalledServices[types.LXD], ", "), Bold: true})
 		warnings = append(warnings, Warning{Level: Error, Message: msg})
 	}
 
@@ -333,26 +315,26 @@ func compileWarnings(name string, statuses []types.Status) Warnings {
 			list = append(list, name)
 		}
 
-		tmpl := style.Format{Color: style.White, Arg: "MicroCloud members not found in %s: %s"}
-		msg := style.ColorPrintf(tmpl,
-			style.Format{Color: style.Purple, Arg: service},
-			style.Format{Color: style.Purple, Arg: strings.Join(list, ", ")})
+		tmpl := tui.Fmt{Arg: "MicroCloud members not found in %s: %s"}
+		msg := tui.Printf(tmpl,
+			tui.Fmt{Color: tui.Bright, Arg: service, Bold: true},
+			tui.Fmt{Color: tui.Bright, Bold: true, Arg: strings.Join(list, ", ")})
 		warnings = append(warnings, Warning{Level: Error, Message: msg})
 	}
 
 	if !osdsConfigured && len(uninstalledServices[types.MicroCeph]) < clusterSize {
-		warnings = append(warnings, Warning{Level: Warn, Message: style.TextColor("No MicroCeph OSDs configured")})
+		warnings = append(warnings, Warning{Level: Warn, Message: "No MicroCeph OSDs configured"})
 	}
 
 	for name := range offlineSystems {
-		tmpl := style.Format{Color: style.White, Arg: "%s is not available"}
-		msg := style.ColorPrintf(tmpl, style.Format{Color: style.Purple, Arg: name})
+		tmpl := tui.Fmt{Arg: "%s is not available"}
+		msg := tui.Printf(tmpl, tui.Fmt{Color: tui.Bright, Bold: true, Arg: name})
 		warnings = append(warnings, Warning{Level: Warn, Message: msg})
 	}
 
 	for service := range upgradingServices {
-		tmpl := style.Format{Color: style.White, Arg: "%s upgrade in progress"}
-		msg := style.ColorPrintf(tmpl, style.Format{Color: style.Purple, Arg: service})
+		tmpl := tui.Fmt{Arg: "%s upgrade in progress"}
+		msg := tui.Printf(tmpl, tui.Fmt{Color: tui.Bright, Bold: true, Arg: service})
 		warnings = append(warnings, Warning{Level: Warn, Message: msg})
 	}
 
@@ -361,10 +343,10 @@ func compileWarnings(name string, statuses []types.Status) Warnings {
 			continue
 		}
 
-		tmpl := style.Format{Color: style.White, Arg: "%s is not installed on %s"}
-		msg := style.ColorPrintf(tmpl,
-			style.Format{Color: style.Purple, Arg: service},
-			style.Format{Color: style.Purple, Arg: strings.Join(names, ", ")})
+		tmpl := tui.Fmt{Arg: "%s is not installed on %s"}
+		msg := tui.Printf(tmpl,
+			tui.Fmt{Color: tui.Bright, Bold: true, Arg: service},
+			tui.Fmt{Color: tui.Bright, Bold: true, Arg: strings.Join(names, ", ")})
 		warnings = append(warnings, Warning{Level: Warn, Message: msg})
 	}
 
@@ -374,10 +356,10 @@ func compileWarnings(name string, statuses []types.Status) Warnings {
 			list = append(list, name)
 		}
 
-		tmpl := style.Format{Color: style.White, Arg: "Found %s systems not managed by MicroCloud: %s"}
-		msg := style.ColorPrintf(tmpl,
-			style.Format{Color: style.Purple, Arg: service},
-			style.Format{Color: style.Purple, Arg: strings.Join(list, ",")})
+		tmpl := tui.Fmt{Arg: "Found %s systems not managed by MicroCloud: %s"}
+		msg := tui.Printf(tmpl,
+			tui.Fmt{Color: tui.Bright, Bold: true, Arg: service},
+			tui.Fmt{Color: tui.Bright, Bold: true, Arg: strings.Join(list, ",")})
 		warnings = append(warnings, Warning{Level: Warn, Message: msg})
 	}
 
@@ -387,12 +369,12 @@ func compileWarnings(name string, statuses []types.Status) Warnings {
 // formatStatusRow formats the given status data for a cluster member into a row of the table.
 // Also takes the local system's status which will be used as the source of truth for cluster member responsiveness.
 func formatStatusRow(localStatus types.Status, s types.Status) []string {
-	osds := style.WarningColor("0")
+	osds := tui.WarningColor("0", false)
 	if len(s.OSDs) > 0 {
-		osds = style.TextColor(strconv.Itoa(len(s.OSDs)))
+		osds = strconv.Itoa(len(s.OSDs))
 	}
 
-	cephServices := style.WarningColor("-")
+	cephServices := tui.WarningColor("-", false)
 
 	if len(s.CephServices) > 0 {
 		services := make([]string, 0, len(s.CephServices))
@@ -400,29 +382,29 @@ func formatStatusRow(localStatus types.Status, s types.Status) []string {
 			services = append(services, service.Service)
 		}
 
-		cephServices = style.TextColor(strings.Join(services, ","))
+		cephServices = strings.Join(services, ",")
 	}
 
-	ovnServices := style.WarningColor("-")
+	ovnServices := tui.WarningColor("-", false)
 	if len(s.OVNServices) > 0 {
 		services := make([]string, 0, len(s.OVNServices))
 		for _, service := range s.OVNServices {
 			services = append(services, service.Service)
 		}
 
-		ovnServices = style.TextColor(strings.Join(services, ","))
+		ovnServices = strings.Join(services, ",")
 	}
 
 	if len(s.Clusters[types.MicroOVN]) == 0 {
-		ovnServices = style.ErrorColor("-")
+		ovnServices = tui.ErrorColor("-", false)
 	}
 
 	if len(s.Clusters[types.MicroCeph]) == 0 {
-		cephServices = style.ErrorColor("-")
-		osds = style.ErrorColor("-")
+		cephServices = tui.ErrorColor("-", false)
+		osds = tui.ErrorColor("-", false)
 	}
 
-	status := style.SuccessColor(string(microTypes.MemberOnline))
+	status := tui.SuccessColor(string(microTypes.MemberOnline), false)
 	for _, members := range localStatus.Clusters {
 		for _, member := range members {
 			if member.Name != s.Name {
@@ -431,14 +413,14 @@ func formatStatusRow(localStatus types.Status, s types.Status) []string {
 
 			// Only set the service status to upgrading if no other member has a more urgent status.
 			if member.Status == microTypes.MemberUpgrading || member.Status == microTypes.MemberNeedsUpgrade {
-				if status == style.SuccessColor(string(microTypes.MemberOnline)) {
-					status = style.WarningColor(string(member.Status))
+				if status == tui.SuccessColor(string(microTypes.MemberOnline), false) {
+					status = tui.WarningColor(string(member.Status), false)
 				}
 			} else if member.Status != microTypes.MemberOnline {
-				status = style.ErrorColor(string(member.Status))
+				status = tui.ErrorColor(string(member.Status), false)
 			}
 		}
 	}
 
-	return []string{style.TextColor(s.Name), style.TextColor(s.Address), osds, cephServices, ovnServices, status}
+	return []string{s.Name, s.Address, osds, cephServices, ovnServices, status}
 }

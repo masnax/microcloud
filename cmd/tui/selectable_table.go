@@ -6,6 +6,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -123,6 +124,9 @@ func (s *selectableTable) Render(ctx context.Context, handler *InputHandler, tit
 		return nil, fmt.Errorf("Failed to render table: %w", err)
 	}
 
+	// unset the program.
+	s.program = nil
+
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -154,19 +158,19 @@ func (s *selectableTable) Render(ctx context.Context, handler *InputHandler, tit
 	return resultMap, nil
 }
 
-// SendUpdate sends a synchronous update to the table.
+// SendUpdate sends a synchronous update to the table. It waits until the program exists.
 func (s *selectableTable) SendUpdate(msg tea.Msg) {
-	if s.program != nil {
-		s.program.Send(msg)
+	// Sleep until the program is set.
+	for s.program == nil {
+		time.Sleep(300 * time.Millisecond)
 	}
+
+	s.program.Send(msg)
 
 }
 
 // Update handles table updates.
 func (s *selectableTable) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	//s.updateMu.Lock()
-	//defer s.updateMu.Unlock()
-
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		return s.handleKeyEvent(msg)
@@ -233,9 +237,9 @@ func (s *selectableTable) View() string {
 		row := i + s.startIndex
 		var selector string
 		if i == 2 && s.startIndex > 0 {
-			selector = lipgloss.NewStyle().SetString("↑").Bold(true).Foreground(lipgloss.Color(White)).String()
+			selector = lipgloss.NewStyle().SetString("↑").Bold(true).Foreground(White).String()
 		} else if i == len(parts)-footerLength && s.startIndex < len(s.formatRows)-s.size {
-			selector = lipgloss.NewStyle().SetString("↓").Bold(true).Foreground(lipgloss.Color(White)).String()
+			selector = lipgloss.NewStyle().SetString("↓").Bold(true).Foreground(White).String()
 		} else if i == len(parts)-footerLength {
 			selector = " "
 		} else if i < headerLength {
@@ -265,13 +269,13 @@ func (s *selectableTable) View() string {
 
 	filter := Printf(Fmt{Arg: "\n Filter | %s\n", Color: White}, Fmt{Arg: s.filter, Color: Yellow})
 
-	helpEnter := Fmt{Color: BrightWhite, Arg: "enter", Bold: true}
-	helpSpace := Fmt{Color: BrightWhite, Arg: "space", Bold: true}
-	helpRight := Fmt{Color: BrightWhite, Arg: "→", Bold: true}
-	helpType := Fmt{Color: BrightWhite, Arg: "type", Bold: true}
-	helpLeft := Fmt{Color: BrightWhite, Arg: "←", Bold: true}
-	helpUp := Fmt{Color: BrightWhite, Arg: "↑", Bold: true}
-	helpDown := Fmt{Color: BrightWhite, Arg: "↓", Bold: true}
+	helpEnter := Fmt{Color: Bright, Arg: "enter", Bold: true}
+	helpSpace := Fmt{Color: Bright, Arg: "space", Bold: true}
+	helpRight := Fmt{Color: Bright, Arg: "→", Bold: true}
+	helpType := Fmt{Color: Bright, Arg: "type", Bold: true}
+	helpLeft := Fmt{Color: Bright, Arg: "←", Bold: true}
+	helpUp := Fmt{Color: Bright, Arg: "↑", Bold: true}
+	helpDown := Fmt{Color: Bright, Arg: "↓", Bold: true}
 
 	helpTmpl := Fmt{Arg: " %s to select; %s to confirm; %s to filter results.\n %s/%s to move; %s to select all; %s to select none."}
 	help := Printf(helpTmpl, helpSpace, helpEnter, helpType, helpUp, helpDown, helpRight, helpLeft)
@@ -431,6 +435,10 @@ func (s *selectableTable) handleKeyEvent(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	default:
 		s.activeRows = map[int]bool{}
 		s.active = false
+		if s.err != nil {
+			s.err = fmt.Errorf("Input cancelled")
+		}
+
 		return s, tea.Quit
 	}
 
@@ -443,19 +451,19 @@ func (s *selectableTable) rowStyle(row int) {
 		textStyle := lipgloss.NewStyle().SetString(s.rawRows[rawRowIndex][col])
 		if row == s.currentRow {
 			if s.activeRows[s.filterMap[row]] {
-				textStyle = textStyle.Bold(true).Foreground(lipgloss.Color(Green))
+				textStyle = textStyle.Bold(true).Foreground(Green)
 			} else if s.disabledRows[s.filterMap[row]] {
-				textStyle = textStyle.Bold(true).Foreground(lipgloss.Color(Red))
+				textStyle = textStyle.Bold(true).Foreground(Red)
 			} else {
-				textStyle = textStyle.Bold(true).Foreground(lipgloss.Color(White))
+				textStyle = textStyle.Bold(true).Foreground(White)
 			}
 		} else {
 			if s.activeRows[s.filterMap[row]] {
-				textStyle = textStyle.Bold(false).Foreground(lipgloss.Color(Green))
+				textStyle = textStyle.Bold(false).Foreground(Green)
 			} else if s.disabledRows[s.filterMap[row]] {
-				textStyle = textStyle.Bold(false).Foreground(lipgloss.Color(Red))
+				textStyle = textStyle.Bold(false).Foreground(Red)
 			} else {
-				textStyle = textStyle.Bold(false).Foreground(lipgloss.Color(White))
+				textStyle = textStyle.Bold(false).Foreground(White)
 			}
 		}
 
