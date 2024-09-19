@@ -1,0 +1,136 @@
+[
+  {
+    "Name": "micro02",
+    "Address": "10.148.181.110",
+    "Clusters": {
+      "LXD": [
+        {
+          "name": "micro01",
+          "address": "10.148.181.237:8443",
+          "certificate": "X",
+          "role": "database-leader,database",
+          "schema_internal_version": 0,
+          "schema_external_version": 0,
+          "last_heartbeat": "0001-01-01T00:00:00Z",
+          "status": "ONLINE",
+          "extensions": [],
+          "secret": ""
+        },
+        {
+          "name": "micro02",
+          "address": "10.148.181.110:8443",
+          "certificate": "X",
+          "role": "database-standby",
+          "schema_internal_version": 0,
+          "schema_external_version": 0,
+          "last_heartbeat": "0001-01-01T00:00:00Z",
+          "status": "ONLINE",
+          "extensions": [],
+          "secret": ""
+        }
+      ],
+      "MicroCloud": [
+        {
+          "name": "micro01",
+          "address": "10.148.181.237:9443",
+          "certificate": "X",
+          "role": "voter",
+          "schema_internal_version": 6,
+          "schema_external_version": 0,
+          "last_heartbeat": "2024-08-28T02:30:20.574207149Z",
+          "status": "ONLINE",
+          "extensions": [
+            "internal:runtime_extension_v1",
+            "internal:rename_core_endpoints"
+          ],
+          "secret": ""
+        },
+        {
+          "name": "micro02",
+          "address": "10.148.181.110:9443",
+          "certificate": "X",
+          "role": "spare",
+          "schema_internal_version": 6,
+          "schema_external_version": 0,
+          "last_heartbeat": "2024-08-28T02:30:20.606251945Z",
+          "status": "ONLINE",
+          "extensions": [
+            "internal:runtime_extension_v1",
+            "internal:rename_core_endpoints"
+          ],
+          "secret": ""
+        }
+      ]
+    },
+    "OSDs": [],
+    "CephServices": [],
+    "OVNServices": []
+  },
+  {
+    "Name": "micro01",
+    "Address": "10.148.181.237",
+    "Clusters": {
+      "LXD": [
+        {
+          "name": "micro01",
+          "address": "10.148.181.237:8443",
+          "certificate": "X",
+          "role": "database-leader,database",
+          "schema_internal_version": 0,
+          "schema_external_version": 0,
+          "last_heartbeat": "0001-01-01T00:00:00Z",
+          "status": "ONLINE",
+          "extensions": [],
+          "secret": ""
+        },
+        {
+          "name": "micro02",
+          "address": "10.148.181.110:8443",
+          "certificate": "X",
+          "role": "database-standby",
+          "schema_internal_version": 0,
+          "schema_external_version": 0,
+          "last_heartbeat": "0001-01-01T00:00:00Z",
+          "status": "ONLINE",
+          "extensions": [],
+          "secret": ""
+        }
+      ],
+      "MicroCloud": [
+        {
+          "name": "micro01",
+          "address": "10.148.181.237:9443",
+          "certificate": "X",
+          "role": "voter",
+          "schema_internal_version": 6,
+          "schema_external_version": 0,
+          "last_heartbeat": "2024-08-28T02:30:20.574207149Z",
+          "status": "ONLINE",
+          "extensions": [
+            "internal:runtime_extension_v1",
+            "internal:rename_core_endpoints"
+          ],
+          "secret": ""
+        },
+        {
+          "name": "micro02",
+          "address": "10.148.181.110:9443",
+          "certificate": "X",
+          "role": "spare",
+          "schema_internal_version": 6,
+          "schema_external_version": 0,
+          "last_heartbeat": "2024-08-28T02:30:20.606251945Z",
+          "status": "ONLINE",
+          "extensions": [
+            "internal:runtime_extension_v1",
+            "internal:rename_core_endpoints"
+          ],
+          "secret": ""
+        }
+      ]
+    },
+    "OSDs": [],
+    "CephServices": [],
+    "OVNServices": []
+  }
+]

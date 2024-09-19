@@ -1,0 +1,18 @@
+Hi Frederico, Julian's off this week so I just wanted to leave a few comments about these mitigation steps.
+
+Regarding the number of failed attempts, it seems to me that this would not have a large impact on attack vectors we are expecting.
+
+If a man in the middle is listening on the network, then they can brute-force the passphrase locally, and so will not make any failed attempts. The case that could take advantage of a max-retries counter is if an attacker is repeatedly sending requests to the initiator over the network. However, in this case there is already an implicit upper limit on the number of requests that can be processed by the initiator within the maximum time limit of 60 minutes: there is network delay, the built-in delay between requests, and also the processing time of the initiator computing and comparing the key for the given attempt, with the computationally expensive algorithm. Can you please advise what a hard max-retries counter would add to this?
+
+So far we have discussed adding new security knobs that we will need to review and maintain over time, but argon2 and bcrypt both offer some parameters that can be adjuested, like bumping the iteration count to make the delay in processing on the initiator take longer, and also make it harder for a man in the middle to brute-force the passphrase locally.
+
+In terms of maintaining the standard of security as computers become more computationally capable, both bcrypt and argon2 have parameters that can be adjusted to make computation more expensive.
+
+https://pkg.go.dev/golang.org/x/crypto/argon2#Key
+> The time parameter specifies the number of passes over the memory and the memory parameter specifies the size of the memory in KiB. For example memory=32*1024 sets the memory cost to ~32 MB. The number of threads can be adjusted to the number of available CPUs. The cost parameters should be increased as memory latency and CPU parallelism increases. Remember to get a good random salt.
+
+https://pkg.go.dev/golang.org/x/crypto/bcrypt#Cost
+> Cost returns the hashing cost used to create the given hashed password. When, in the future, the hashing cost of a password system needs to be increased in order to adjust for greater computational power, this function allows one to establish which passwords need to be updated.
+
+
+Additionally, I should mention that while there has been a lot of discussion focused on argon2, we don't have any benchmarks so these attack mitigation steps have not actually been tested for efficacy. We are not particularly committed to argon2, so perhaps we should discuss using a Canonical-recommended algorithm which can be empirically tested instead? There has been some discussion around bcrypt, so if that or some other algorithm would be preferable, then we can make the switch.

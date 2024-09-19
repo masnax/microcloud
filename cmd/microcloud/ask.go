@@ -87,8 +87,8 @@ func (c *initConfig) askRetry(question string, f func() error) error {
 		retry := false
 		err := f()
 		if err != nil {
-			fmt.Println(tui.ErrorColor(err.Error(), true))
-			retry, err = c.asker.AskBoolErr(fmt.Sprintf("%s", question), true)
+			fmt.Printf("%s %s\n", tui.ErrorSymbol(), tui.ErrorColor(err.Error(), true))
+			retry, err = c.asker.AskBool(fmt.Sprintf("%s", question), true)
 			if err != nil {
 				return err
 			}
@@ -683,7 +683,7 @@ func (c *initConfig) askRemotePool(sh *service.Handler) error {
 
 			if insufficientDisks {
 				// This error will be printed to STDOUT as a normal message, so it includes a new-line for readability.
-				return fmt.Errorf("Disk configuration does not meet recommendations for fault tolerance. At least %d systems must supply disks.\nContinuing with this configuration will leave MicroCloud susceptible to data loss", RecommendedOSDHosts)
+				return fmt.Errorf("Disk configuration does not meet recommendations for fault tolerance. At least %d systems must supply disks.\nContinuing with this configuration will prevent MicroCloud from retaining data on system failure", RecommendedOSDHosts)
 			}
 
 			return nil

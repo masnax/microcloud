@@ -10,14 +10,14 @@ func baseTableTemplate(header []string) *table.Table {
 	t := table.New()
 	t = t.Headers(header...)
 	t = t.Border(lipgloss.NormalBorder())
-	t = t.BorderStyle(lipgloss.NewStyle().Foreground(lipgloss.Color(BrightBlack)))
+	t = t.BorderStyle(lipgloss.NewStyle().Foreground(Border))
 	t = t.StyleFunc(func(row, col int) lipgloss.Style {
 		tmpl := lipgloss.NewStyle()
 		tmpl = tmpl.Padding(0, 1)
 		tmpl = tmpl.Align(lipgloss.Center)
 
 		if row == 0 {
-			header[col] = lipgloss.NewStyle().Foreground(lipgloss.Color(BrightWhite)).Bold(true).SetString(header[col]).String()
+			header[col] = lipgloss.NewStyle().Foreground(Bright).Bold(true).SetString(header[col]).String()
 		}
 
 		return tmpl

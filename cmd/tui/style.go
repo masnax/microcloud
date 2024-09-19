@@ -10,46 +10,56 @@ import (
 )
 
 const (
-	// White represents the common bright white color used throughout the CLI.
-	BrightWhite = "15"
+	white       = "#a0a0a0"
+	brightWhite = "#ffffff"
 
-	// BrightBlack represents the common bright black color used throughout the CLI.
-	BrightBlack = "8"
+	black       = "#000000"
+	brightBlack = "#505050"
 
-	// Grey represents the common white color used throughout the CLI.
-	White = "7"
+	red       = "#c01c28"
+	brightRed = "#f66151"
 
-	// Red represents the common red color used throughout the CLI.
-	Red = "9"
+	green       = "#26a269"
+	brightGreen = "#33da7a"
 
-	// Green represents the common green color used throughout the CLI.
-	Green = "10"
-
-	// Yellow represents the common yellow color used throughout the CLI.
-	Yellow = "11"
-
-	Cyan = "12"
+	yellow       = "#d97d0c"
+	brightYellow = "#f99d2c"
 )
 
-// SetColor applies the color to the given text.
-func SetColor(color string, str string, bold bool) string {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(color)).SetString(str).Bold(bold).String()
+var (
+	// Yellow represents the common yellow color used throughout the CLI.
+	Yellow lipgloss.TerminalColor = lipgloss.AdaptiveColor{Dark: brightYellow, Light: yellow}
+
+	// Red represents the common red color used throughout the CLI.
+	Red lipgloss.TerminalColor = lipgloss.AdaptiveColor{Dark: brightRed, Light: red}
+
+	// Green represents the common green color used throughout the CLI.
+	Green lipgloss.TerminalColor = lipgloss.AdaptiveColor{Dark: brightGreen, Light: green}
+
+	// White represents white on a black background and black on a white background.
+	White lipgloss.TerminalColor = lipgloss.AdaptiveColor{Dark: white, Light: black}
+
+	// Bright represents bright white on a black background, or bright black on a white background.
+	Bright lipgloss.TerminalColor = lipgloss.AdaptiveColor{Dark: brightWhite, Light: brightBlack}
+
+	// Border represents the default border color used for tables.
+	Border lipgloss.TerminalColor = lipgloss.Color(brightBlack)
+)
+
+// DisableColors globally disables colors.
+func DisableColors() {
+	Yellow = lipgloss.Color("")
+	Red = lipgloss.Color("")
+	Green = lipgloss.Color("")
+	White = lipgloss.Color("")
+	Bright = lipgloss.Color("")
+	Border = lipgloss.Color("")
 }
 
-//// TextColor sets the 8-bit color of the text to 252. Used for basic text.
-//func TextColor(text string) string {
-//	return SetColor(White, text, false)
-//}
-//
-//// TableBorderColor sets the 8-bit color of the text to 248. Used for table header text.
-//func TableHeaderColor(text string) string {
-//	return SetColor(Grey, text, false)
-//}
-//
-//// TableBorderColor sets the 8-bit color of the text to 238. Used for table borders.
-//func TableBorderColor(text string) string {
-//	return SetColor(DarkGrey, text, false)
-//}
+// SetColor applies the color to the given text.
+func SetColor(color lipgloss.TerminalColor, str string, bold bool) string {
+	return lipgloss.NewStyle().Foreground(color).SetString(str).Bold(bold).String()
+}
 
 // SuccessColor sets the 8-bit color of the text to 82. Green color used for happy messages.
 func SuccessColor(text string, bold bool) string {
@@ -91,7 +101,7 @@ func (*ColorErr) Write(p []byte) (n int, err error) {
 
 // Fmt represents the data supplied to ColorPrintf. In particular, it takes a color to apply to the text, and the text itself.
 type Fmt struct {
-	Color string
+	Color lipgloss.TerminalColor
 	Arg   any
 	Bold  bool
 }
@@ -122,13 +132,13 @@ func Printf(template Fmt, args ...Fmt) string {
 		}
 
 		styledTmpl := lipgloss.NewStyle().Bold(template.Bold).SetString(preNL)
-		styledTmpl = styledTmpl.Foreground(lipgloss.Color(template.Color))
+		styledTmpl = styledTmpl.Foreground(template.Color)
 		styledArg += styledTmpl.String()
 
 		_, _ = builder.WriteString(styledArg + postNL)
 		if i < len(args) {
 			styledTmpl := lipgloss.NewStyle().Bold(args[i].Bold)
-			styledTmpl = styledTmpl.Foreground(lipgloss.Color(args[i].Color))
+			styledTmpl = styledTmpl.Foreground(args[i].Color)
 			_, _ = builder.WriteString(styledTmpl.SetString(fmt.Sprintf(directives[i], args[i].Arg)).String())
 		}
 	}
