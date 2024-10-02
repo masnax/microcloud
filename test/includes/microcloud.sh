@@ -82,6 +82,7 @@ microcloud_interactive() {
   CEPH_FILTER=${CEPH_FILTER:-}                   # filter string for CEPH disks.
   CEPH_WIPE=${CEPH_WIPE:-}                       # (yes/no) to wipe all disks.
   CEPH_RETRY_HA=${CEPH_RETRY_HA:-}                     # (yes/no) input for warning setup is not HA.
+  CEPH_OSD_SIZE=${CEPH_OSD_SIZE:-}               # whether or not to answer OSD pool size questions.
   CEPH_ENCRYPT=${CEPH_ENCRYPT:-}                  # (yes/no) to encrypt all disks.
   CEPH_CLUSTER_NETWORK=${CEPH_CLUSTER_NETWORK:-} # (default: MicroCloud internal subnet or Ceph public network if specified previously) input for setting up a cluster network.
   PROCEED_WITH_NO_OVERLAY_NETWORKING=${PROCEED_WITH_NO_OVERLAY_NETWORKING:-} # (yes/no) input for proceeding without overlay networking.
@@ -107,10 +108,6 @@ microcloud_interactive() {
 
   if [ -n "${ZFS_FILTER}" ]; then
     ZFS_FILTER="table:filter ${ZFS_FILTER}"
-  fi
-
-  if [ -n "${CEPH_FILTER}" ]; then
-    CEPH_FILTER="table:filter ${CEPH_FILTER}"
   fi
 
   if [ -n "${CEPH_FILTER}" ]; then
@@ -175,14 +172,16 @@ if [ -n "${SETUP_CEPH}" ]; then
 ${SETUP_CEPH}                                           # add remote disks (yes/no)
 ${CEPH_MISSING_DISKS}                                   # continue with some peers missing disks? (yes/no)
 $([ "${SETUP_CEPH}" = "yes" ] && printf "table:wait 300ms")   # wait for the table to populate
-${CEPH_FILTER}                                          # filter ceph disks
+$([ "${SETUP_CEPH}" = "yes" ] && printf "%s" "${CEPH_FILTER}") # filter ceph disks
 $([ "${SETUP_CEPH}" = "yes" ] && printf "table:select-all")   # select all disk matching the filter
 $([ "${SETUP_CEPH}" = "yes" ] && printf -- "table:done")
-$([ "${CEPH_WIPE}"  = "yes" ] && printf "table:select-all")   # wipe all disks
+$([ "${SETUP_CEPH}" = "yes" ] && [ "${CEPH_WIPE}"  = "yes" ] && printf "table:select-all")   # wipe all disks
 $([ "${SETUP_CEPH}" = "yes" ] && printf -- "table:done")
 $([ "${SETUP_CEPH}" = "yes" ] && printf "%s" "${CEPH_RETRY_HA}" ) # allow ceph setup without 3 systems supplying disks.
-${CEPH_ENCRYPT}                                         # encrypt disks? (yes/no)
-${SETUP_CEPHFS}
+$([ "${SETUP_CEPH}" = "yes" ] && [ -n "${CEPH_OSD_SIZE}" ] && printf "table:select-all")   # select all OSD pools
+$([ "${SETUP_CEPH}" = "yes" ] && [ -n "${CEPH_OSD_SIZE}" ] && printf -- "table:done")
+$([ "${SETUP_CEPH}" = "yes" ] && printf "%s" "${CEPH_ENCRYPT}")   # encrypt disks? (yes/no)
+$([ "${SETUP_CEPH}" = "yes" ] && printf "%s" "${SETUP_CEPHFS}")
 $([ "${SETUP_CEPH}" = "yes" ] && printf "%s" "${CEPH_CLUSTER_NETWORK}" ) # set ceph cluster network
 $(true)                                                 # workaround for set -e
 "
@@ -1037,7 +1036,6 @@ restore_systems() {
 }
 
 restore_system() {
-  set -x
   name="${1}"
   shift 1
 

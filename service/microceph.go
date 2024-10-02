@@ -242,6 +242,35 @@ func (s CephService) ClusterConfig(ctx context.Context, targetAddress string, ce
 	return configs, nil
 }
 
+// OSDPoolConfig returns the OSD Pool configuration.
+func (s CephService) OSDPoolConfig(ctx context.Context, targetAddress string, cert *x509.Certificate) ([]cephTypes.Pool, error) {
+	var c *client.Client
+	var err error
+	if targetAddress == "" {
+		c, err = s.Client("")
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		c, err = s.remoteClient(cert, targetAddress)
+		if err != nil {
+			return nil, err
+		}
+
+		c, err = cloudClient.UseAuthProxy(c, types.MicroCeph, cloudClient.AuthConfig{})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	pools, err := cephClient.GetPools(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+
+	return pools, nil
+}
+
 // Type returns the type of Service.
 func (s CephService) Type() types.ServiceType {
 	return types.MicroCeph

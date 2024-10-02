@@ -53,6 +53,8 @@ type InitSystem struct {
 	AvailableDisks []lxdAPI.ResourcesStorageDisk
 	// MicroCephDisks contains the disks intended to be passed to MicroCeph.
 	MicroCephDisks []cephTypes.DisksPost
+	// OSDPoolConfig is the new configuration for OSD pools.
+	OSDPoolConfig cephTypes.PoolPut
 	// MicroCephClusterNetworkSubnet is an optional the subnet (IPv4/IPv6 CIDR notation) for the Ceph cluster network.
 	MicroCephInternalNetworkSubnet string
 	// TargetNetworks contains the network configuration for the target system.
@@ -754,26 +756,26 @@ func (c *initConfig) setupCluster(s *service.Handler) error {
 			}
 		}
 
-		c, err := s.Services[types.MicroCeph].(*service.CephService).Client(s.Name)
-		if err != nil {
-			return err
-		}
-
-		allDisks, err := cephClient.GetDisks(context.Background(), c)
-		if err != nil {
-			return err
-		}
-
-		if len(allDisks) > 0 {
-			defaultPoolSize := len(allDisks)
-			if defaultPoolSize > 3 {
-				defaultPoolSize = 3
+		// Only change the OSD pool sizes if the remote disk configuration requires it.
+		if c.systems[s.Name].OSDPoolConfig.Size != 0 {
+			// MicroCeph requires passing an empty string to only set the default pool size for new pools, without changing existing pools.
+			if len(c.systems[s.Name].OSDPoolConfig.Pools) == 0 {
+				system := c.systems[s.Name]
+				system.OSDPoolConfig.Pools = []string{""}
+				c.systems[s.Name] = system
 			}
 
-			err = cephClient.PoolSetReplicationFactor(context.Background(), c, &cephTypes.PoolPut{Pools: []string{"*"}, Size: int64(defaultPoolSize)})
+			client, err := s.Services[types.MicroCeph].(*service.CephService).Client(s.Name)
 			if err != nil {
 				return err
 			}
+
+			poolPut := c.systems[s.Name].OSDPoolConfig
+			err = cephClient.PoolSetReplicationFactor(context.Background(), client, &poolPut)
+			if err != nil {
+				return err
+			}
+
 		}
 	}
 

@@ -8,6 +8,7 @@ import (
 	"net"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -559,6 +560,8 @@ func (c *initConfig) askRemotePool(sh *service.Handler) error {
 			askSystemsRemoteFS[info.ClusterName] = true
 		}
 	}
+
+	osdPoolSizes := &cephTypes.PoolPut{Size: RecommendedOSDHosts}
 	var selectedDisks map[string][]string
 	var wipeDisks map[string]map[string]bool
 	availableDiskCount := 0
@@ -694,17 +697,29 @@ func (c *initConfig) askRemotePool(sh *service.Handler) error {
 
 		if len(selectedDisks) == 0 {
 			return nil
-		} else {
-			fmt.Println()
 		}
 
+		fmt.Println()
 		for target, disks := range selectedDisks {
 			if len(disks) > 0 {
 				fmt.Println(tui.SummarizeResult("Using %d disk(s) on %s for remote storage pool", len(disks), target))
 			}
 		}
 
-		if len(selectedDisks) > 0 {
+		fmt.Println()
+
+		osdPoolSizes, err = c.askOSDPoolSize(selectedDisks)
+		if err != nil {
+			return err
+		}
+
+		if len(osdPoolSizes.Pools) > 0 {
+			fmt.Println()
+
+			for _, name := range osdPoolSizes.Pools {
+				fmt.Println(tui.SummarizeResult("Using %d replicas for OSD Pool %s", osdPoolSizes.Size, name))
+			}
+
 			fmt.Println()
 		}
 	}
@@ -834,10 +849,102 @@ func (c *initConfig) askRemotePool(sh *service.Handler) error {
 			system.StoragePools = append(system.StoragePools, finalConfigs...)
 		}
 
+		if peer == sh.Name {
+			system.OSDPoolConfig = *osdPoolSizes
+		}
+
 		c.systems[peer] = system
 	}
 
 	return nil
+}
+
+func (c *initConfig) askOSDPoolSize(selectedDisks map[string][]string) (*cephTypes.PoolPut, error) {
+	osdPoolSizes := &cephTypes.PoolPut{Size: RecommendedOSDHosts}
+	err := c.askRetry("Retry configuring OSD Pools?", func() error {
+		// Get any existing OSD pools and OSDs from a preconfigured MicroCeph.
+		maxOSDs := 0
+		var existingOSDPools []cephTypes.Pool
+		for _, target := range c.state {
+			if len(target.OSDPoolConfig) > 0 {
+				existingOSDPools = target.OSDPoolConfig
+				for _, pool := range target.OSDPoolConfig {
+					// Use the `.mgr` pool as the basis for the current default OSD pool size.
+					if pool.Pool == ".mgr" {
+						maxOSDs = int(pool.Size)
+						break
+					}
+				}
+
+				// Pools are not node-specific so we can stop after the first system that has pools.
+				break
+			}
+		}
+
+		// Compile the maximum replication size based on the current number of OSDs, and all newly added ones.
+		for _, disks := range selectedDisks {
+			maxOSDs += len(disks)
+		}
+
+		// Minimum replication size is 1.
+		if maxOSDs == 0 {
+			maxOSDs = 1
+		}
+
+		// Maximum replication size is 3.
+		if maxOSDs > RecommendedOSDHosts {
+			maxOSDs = RecommendedOSDHosts
+		}
+
+		// No existing OSD pools found, so we don't have to ask any questions.
+		// We still need to set the default OSD pool size based on the number of selected disks.
+		if len(existingOSDPools) == 0 {
+			osdPoolSizes.Size = int64(maxOSDs)
+
+			return nil
+		}
+
+		data := make([][]string, 0, len(existingOSDPools))
+		for _, pool := range existingOSDPools {
+			if pool.Size < RecommendedOSDHosts {
+				data = append(data, []string{pool.Pool, strconv.FormatInt(pool.Size, 10)})
+			}
+		}
+
+		// All pools are already at the largest supported size, so no need to ask any questions.
+		if len(data) == 0 {
+			return nil
+		}
+
+		table := tui.NewSelectableTable([]string{"OSD Pool", "Current Size"}, data)
+		answers, err := table.Render(context.Background(), c.asker, fmt.Sprintf("Selected configuration supports %d OSD Pool replicas. Select which pools to resize:", maxOSDs))
+		if err != nil {
+			return err
+		}
+
+		// If the user didn't select any OSD pools, then we shouldn't change any individual pool configs.
+		if len(answers) == 0 {
+			osdPoolSizes.Size = int64(maxOSDs)
+
+			return nil
+		}
+
+		// Set the new maximum replication size, and apply it to the selected pools, as well as all newly created pools.
+		osdPoolSizes.Size = int64(maxOSDs)
+		for _, answer := range answers {
+			if osdPoolSizes.Pools == nil {
+				osdPoolSizes.Pools = []string{}
+			}
+			osdPoolSizes.Pools = append(osdPoolSizes.Pools, answer["OSD Pool"])
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return osdPoolSizes, nil
 }
 
 func (c *initConfig) askOVNNetwork(sh *service.Handler) error {
