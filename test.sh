@@ -1,11 +1,11 @@
 #!/bin/sh -eu
 
 
-. /root/go/src/github.com/canonical/microcloud/test/includes/microcloud.sh
-. /root/go/src/github.com/canonical/microcloud/test/suites/basic.sh
-. /root/go/src/github.com/canonical/microcloud/test/suites/add.sh
-. /root/go/src/github.com/canonical/microcloud/test/suites/preseed.sh
-. /root/go/src/github.com/canonical/microcloud/test/suites/recover.sh
+. /.wt/tui/test/includes/microcloud.sh
+. /.wt/tui/test/suites/basic.sh
+. /.wt/tui/test/suites/add.sh
+. /.wt/tui/test/suites/preseed.sh
+. /.wt/tui/test/suites/recover.sh
 
 #!/bin/sh -eu
 
@@ -46,22 +46,22 @@ func() {
  LXD_SNAP_CHANNEL="latest/edge"
 
  LXD_DEBUG_PATH=""
- LXD_DEBUG_PATH="/root/go/bin/lxd"
+ #LXD_DEBUG_PATH="/root/go/bin/lxd"
  MICROCLOUD_DEBUG_PATH="/root/go/bin/microcloud"
  MICROCLOUDD_DEBUG_PATH="/root/go/bin/microcloudd"
 
  # Create VMs if they don't exist, otherwise comment out.
  if [ "${1}" = "clean" ]; then
-   new_systems 4 3 3
+   new_systems 4 4 3
  elif [ "${1}" = "reset" ]; then
-   reset_systems 4 3 3
+   reset_systems 3 3 3
  fi
 
 
  #reset_systems 3 3 3
 
  export SKIP_VM_LAUNCH=1
- set -eux
+ set -eu
  TEST_CURRENT=1
  #test_non_ha
  TEST_CURRENT=2
@@ -93,6 +93,8 @@ func() {
  TEST_CURRENT=15
  #test_add_services
  TEST_CURRENT=16
+ #test_osd_select
+ TEST_CURRENT=17
  return 0
 }
 

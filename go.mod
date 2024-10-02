@@ -6,7 +6,7 @@ replace github.com/canonical/microcluster/v2 => github.com/canonical/microcluste
 
 require (
 	github.com/canonical/lxd v0.0.0-20240911143859-c6d9159cf799
-	github.com/canonical/microceph/microceph v0.0.0-20240912190827-ef42f096671e
+	github.com/canonical/microceph/microceph v0.0.0-20240924233504-a50b10bf4f17
 	github.com/canonical/microcluster/v2 v2.0.3-0.20240911074836-85e676b8f4bc
 	github.com/canonical/microovn/microovn v0.0.0-20240829122904-aaabc609cab6
 	github.com/charmbracelet/bubbletea v1.1.0

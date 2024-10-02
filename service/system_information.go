@@ -8,6 +8,7 @@ import (
 
 	"github.com/canonical/lxd/shared/api"
 
+	cephTypes "github.com/canonical/microceph/microceph/api/types"
 	"github.com/canonical/microcloud/microcloud/api/types"
 	"github.com/canonical/microcloud/microcloud/mdns"
 )
@@ -43,6 +44,9 @@ type SystemInformation struct {
 
 	// CephConfig is the MicroCeph configuration on this system.
 	CephConfig map[string]string
+
+	// OSDPoolConfig is the MicroCeph OSD Pool configuration on this system.
+	OSDPoolConfig []cephTypes.Pool
 
 	// existingLocalPool is the current storage pool named "local" on this system.
 	existingLocalPool *api.StoragePool
@@ -168,6 +172,16 @@ func (sh *Handler) CollectSystemInformation(ctx context.Context, connectInfo mdn
 
 		if err != nil && !api.StatusErrorCheck(err, http.StatusServiceUnavailable) {
 			return nil, fmt.Errorf("Failed to get Ceph configuration on %q: %w", s.ClusterName, err)
+		}
+
+		if localSystem {
+			s.OSDPoolConfig, err = microceph.OSDPoolConfig(ctx, "", nil)
+		} else {
+			s.OSDPoolConfig, err = microceph.OSDPoolConfig(ctx, s.ClusterAddress, connectInfo.Certificate)
+		}
+
+		if err != nil && !api.StatusErrorCheck(err, http.StatusServiceUnavailable) {
+			return nil, fmt.Errorf("Failed to get Ceph OSD Pool configuration on %q: %w", s.ClusterName, err)
 		}
 	}
 

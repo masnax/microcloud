@@ -1371,6 +1371,376 @@ test_remove_cluster_member() {
   done
 }
 
+test_osd_select() {
+  unset_interactive_vars
+
+  microcloud_internal_net_addr="$(ip_config_to_netaddr lxdbr0)"
+
+  # Set the default config for interactive setup.
+  export EXPECT_PEERS=1
+  export SETUP_ZFS="no"
+  export SETUP_CEPH="yes"
+  export SETUP_CEPHFS="yes"
+  export CEPH_FILTER="lxd_disk2"
+  export CEPH_WIPE="yes"
+  export CEPH_ENCRYPT="no"
+  export SETUP_OVN="no"
+  export OVN_FILTER="enp6s0"
+  export IPV4_SUBNET="10.1.123.1/24"
+  export IPV4_START="10.1.123.100"
+  export IPV4_END="10.1.123.254"
+  export DNS_ADDRESSES="10.1.123.1,8.8.8.8"
+  export IPV6_SUBNET="fd42:1:1234:1234::1/64"
+  export OVN_UNDERLAY_NETWORK="no"
+
+  reset_systems 2 3 3
+  echo "Initially set up 0 OSDs, then grow with 0 new OSDs (no question)"
+  export MULTI_NODE="no"
+  export SKIP_LOOKUP=1
+  export LOOKUP_IFACE="enp5s0"
+  export CEPH_CLUSTER_NETWORK="${microcloud_internal_net_addr}"
+  export SETUP_CEPH="no"
+  microcloud_interactive | lxc exec micro01 -- sh -c "microcloud init > out"
+
+  unset MULTI_NODE
+  unset SKIP_LOOKUP
+  unset LOOKUP_IFACE
+  unset CEPH_CLUSTER_NETWORK
+  LOOKUP_IFACE="enp5s0" microcloud_join "micro02" &
+  pid1="$!"
+  microcloud_interactive | lxc exec micro01 -- sh -c "microcloud add > out"
+  wait "${pid1}"
+
+  lxc exec micro01 -- microceph.ceph config get mon osd_pool_default_size | grep -q 3
+
+
+  reset_systems 2 3 3
+  echo "Initially set up 0 OSDs, then grow with 2 new OSDs (no question)"
+  export MULTI_NODE="no"
+  export SKIP_LOOKUP=1
+  export LOOKUP_IFACE="enp5s0"
+  export CEPH_CLUSTER_NETWORK="${microcloud_internal_net_addr}"
+  export SETUP_CEPH="no"
+  microcloud_interactive | lxc exec micro01 -- sh -c "microcloud init > out"
+
+  unset MULTI_NODE
+  unset SKIP_LOOKUP
+  unset LOOKUP_IFACE
+  unset CEPH_CLUSTER_NETWORK
+  export SETUP_CEPH="yes"
+  export CEPH_RETRY_HA="no"
+  LOOKUP_IFACE="enp5s0" microcloud_join "micro02" &
+  pid1="$!"
+  microcloud_interactive | lxc exec micro01 -- sh -c "microcloud add > out"
+  wait "${pid1}"
+
+  lxc exec micro01 -- microceph.ceph config get mon osd_pool_default_size | grep -q 2
+  lxc exec micro01 -- microceph pool ls | grep ".mgr" | grep -q " 2 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_remote" | grep -q " 2 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_meta" | grep -q " 2 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_data" | grep -q " 2 "
+
+  reset_systems 2 3 3
+  echo "Initially set up 1 OSD , then grow with 0 new OSDs (no question)"
+  unset CEPH_OSD_SIZE
+  export MULTI_NODE="no"
+  export SKIP_LOOKUP=1
+  export LOOKUP_IFACE="enp5s0"
+  export CEPH_CLUSTER_NETWORK="${microcloud_internal_net_addr}"
+  microcloud_interactive | lxc exec micro01 -- sh -c "microcloud init > out"
+
+  lxc exec micro01 -- microceph.ceph config get mon osd_pool_default_size | grep -q 1
+  lxc exec micro01 -- microceph pool ls | grep ".mgr" | grep -q " 1 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_remote" | grep -q " 1 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_meta" | grep -q " 1 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_data" | grep -q " 1 "
+
+  unset MULTI_NODE
+  unset SKIP_LOOKUP
+  unset LOOKUP_IFACE
+  unset CEPH_CLUSTER_NETWORK
+  export SETUP_CEPH="no"
+  LOOKUP_IFACE="enp5s0" microcloud_join "micro02" &
+  pid1="$!"
+  microcloud_interactive | lxc exec micro01 -- sh -c "microcloud add > out"
+  wait "${pid1}"
+
+  lxc exec micro01 -- microceph.ceph config get mon osd_pool_default_size | grep -q 1
+  lxc exec micro01 -- microceph pool ls | grep ".mgr" | grep -q " 1 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_remote" | grep -q " 1 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_meta" | grep -q " 1 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_data" | grep -q " 1 "
+
+  reset_systems 2 3 3
+  echo "initially set up 1 OSDs, then grow with 1 new OSD (ask question)"
+  unset CEPH_OSD_SIZE
+  export MULTI_NODE="no"
+  export SKIP_LOOKUP=1
+  export LOOKUP_IFACE="enp5s0"
+  export CEPH_CLUSTER_NETWORK="${microcloud_internal_net_addr}"
+  export SETUP_CEPH="yes"
+  microcloud_interactive | lxc exec micro01 -- sh -c "microcloud init > out"
+
+  lxc exec micro01 -- microceph.ceph config get mon osd_pool_default_size | grep -q 1
+  lxc exec micro01 -- microceph pool ls | grep ".mgr" | grep -q " 1 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_remote" | grep -q " 1 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_meta" | grep -q " 1 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_data" | grep -q " 1 "
+
+  unset MULTI_NODE
+  unset SKIP_LOOKUP
+  unset LOOKUP_IFACE
+  unset CEPH_CLUSTER_NETWORK
+  unset CEPH_RETRY_HA
+  unset SETUP_CEPHFS
+  export SETUP_CEPH="yes"
+  export CEPH_OSD_SIZE="yes"
+  LOOKUP_IFACE="enp5s0" microcloud_join "micro02" &
+  pid1="$!"
+  microcloud_interactive | lxc exec micro01 -- sh -c "microcloud add > out"
+  wait "${pid1}"
+
+
+  lxc exec micro01 -- microceph.ceph config get mon osd_pool_default_size | grep -q 2
+  lxc exec micro01 -- microceph pool ls | grep ".mgr" | grep -q " 2 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_remote" | grep -q " 2 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_meta" | grep -q " 2 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_data" | grep -q " 2 "
+
+
+  reset_systems 2 3 3
+  echo "initially set up 3 OSDs, then grow with 1 new OSD (no question)"
+  unset CEPH_OSD_SIZE
+  export MULTI_NODE="no"
+  export SKIP_LOOKUP=1
+  export LOOKUP_IFACE="enp5s0"
+  export CEPH_CLUSTER_NETWORK="${microcloud_internal_net_addr}"
+  export CEPH_RETRY_HA="no"
+  export CEPH_FILTER="lxd_disk"
+  export SETUP_CEPHFS="yes"
+  microcloud_interactive | lxc exec micro01 -- sh -c "microcloud init > out"
+  export CEPH_FILTER="lxd_disk2"
+
+  lxc exec micro01 -- microceph.ceph config get mon osd_pool_default_size | grep -q 3
+  lxc exec micro01 -- microceph pool ls | grep ".mgr" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_remote" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_meta" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_data" | grep -q " 3 "
+
+  unset MULTI_NODE
+  unset SKIP_LOOKUP
+  unset LOOKUP_IFACE
+  unset CEPH_CLUSTER_NETWORK
+  unset CEPH_RETRY_HA
+  unset SETUP_CEPHFS
+  export SETUP_CEPH="yes"
+  export CEPH_RETRY_HA="no"
+  export CEPH_OSD_SIZE="yes"
+  LOOKUP_IFACE="enp5s0" microcloud_join "micro02" &
+  pid1="$!"
+  microcloud_interactive | lxc exec micro01 -- sh -c "microcloud add > out"
+  wait "${pid1}"
+
+
+  lxc exec micro01 -- microceph.ceph config get mon osd_pool_default_size | grep -q 3
+  lxc exec micro01 -- microceph pool ls | grep ".mgr" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_remote" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_meta" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_data" | grep -q " 3 "
+
+  reset_systems 2 3 3
+  echo "existing MicroCeph with OSD (size 1): initially set up 0 OSDs (no question), then grow with 2 new OSDs (ask question)"
+  lxc exec micro01 -- microceph cluster bootstrap
+  lxc exec micro01 -- microceph disk add /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_lxd_disk1 --wipe
+  lxc exec micro01 -- microceph.ceph config set global mon_allow_pool_size_one true
+  lxc exec micro01 -- microceph.ceph config set global osd_pool_default_size 1
+  lxc exec micro01 -- microceph.ceph osd pool create p1
+
+  export MULTI_NODE="no"
+  export SKIP_LOOKUP=1
+  export LOOKUP_IFACE="enp5s0"
+  export CEPH_CLUSTER_NETWORK="${microcloud_internal_net_addr}"
+  export SETUP_CEPH="no"
+  microcloud_interactive | lxc exec micro01 -- sh -c "microcloud init > out"
+
+  lxc exec micro01 -- microceph.ceph config get mon osd_pool_default_size | grep -q 1
+  lxc exec micro01 -- microceph pool ls | grep ".mgr" | grep -q " 1 "
+  lxc exec micro01 -- microceph pool ls | grep "p1" | grep -q " 1 "
+
+  unset MULTI_NODE
+  unset LOOKUP_IFACE
+  unset SKIP_LOOKUP
+  unset CEPH_CLUSTER_NETWORK
+  export SETUP_CEPHFS="yes"
+  export SETUP_CEPH="yes"
+  export CEPH_RETRY_HA="no"
+  export CEPH_OSD_SIZE="yes"
+  LOOKUP_IFACE="enp5s0" microcloud_join "micro02" &
+  pid1="$!"
+  microcloud_interactive | lxc exec micro01 -- sh -c "microcloud add > out"
+  wait "${pid1}"
+
+  lxc exec micro01 -- microceph.ceph config get mon osd_pool_default_size | grep -q 3
+  lxc exec micro01 -- microceph pool ls | grep ".mgr" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "p1" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_remote" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_meta" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_data" | grep -q " 3 "
+
+  reset_systems 2 3 3
+  echo "existing MicroCeph with OSD (size 1): initially set up 1 OSDs (ask question), then grow with 1 new OSD (ask question)"
+  lxc exec micro01 -- microceph cluster bootstrap
+  lxc exec micro01 -- microceph disk add /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_lxd_disk1 --wipe
+  lxc exec micro01 -- microceph.ceph config set global mon_allow_pool_size_one true
+  lxc exec micro01 -- microceph.ceph config set global osd_pool_default_size 1
+  lxc exec micro01 -- microceph.ceph osd pool create p1
+
+
+  # Wait for the .mgr pool to appear.
+  for i in $(seq 0 5); do
+    if lxc exec micro01 -- microceph pool ls | grep -q ".mgr" ; then
+      break
+    fi
+
+    if [ "${i}" = "5" ]; then
+      return 1
+    fi
+
+    sleep 1
+  done
+
+  unset CEPH_CLUSTER_NETWORK
+  export MULTI_NODE="no"
+  export SKIP_LOOKUP=1
+  export LOOKUP_IFACE="enp5s0"
+  export SETUP_CEPH="yes"
+  export SETUP_CEPHFS="yes"
+  export CEPH_RETRY_HA="no"
+  export CEPH_OSD_SIZE="yes"
+  microcloud_interactive | lxc exec micro01 -- sh -c "microcloud init > out"
+  lxc exec micro01 -- microceph.ceph config get mon osd_pool_default_size | grep -q 2
+  lxc exec micro01 -- microceph pool ls | grep ".mgr" | grep -q " 2 "
+  lxc exec micro01 -- microceph pool ls | grep "p1" | grep -q " 2 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_remote" | grep -q " 2 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_meta" | grep -q " 2 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_data" | grep -q " 2 "
+
+  unset MULTI_NODE
+  unset SKIP_LOOKUP
+  unset LOOKUP_IFACE
+  unset CEPH_CLUSTER_NETWORK
+  unset SETUP_CEPHFS
+  unset CEPH_RETRY_HA
+  export SETUP_CEPH="yes"
+  LOOKUP_IFACE="enp5s0" microcloud_join "micro02" &
+  pid1="$!"
+  microcloud_interactive | lxc exec micro01 -- sh -c "microcloud add > out"
+  wait "${pid1}"
+  lxc exec micro01 -- microceph.ceph config get mon osd_pool_default_size | grep -q 3
+  lxc exec micro01 -- microceph pool ls | grep ".mgr" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "p1" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_remote" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_meta" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_data" | grep -q " 3 "
+
+  reset_systems 2 3 3
+  echo "existing MicroCeph with OSD (size 1): initially set up 2 OSDs (ask question), then grow with 1 new OSD (no question)"
+  lxc exec micro01 -- microceph cluster bootstrap
+  lxc exec micro01 -- microceph disk add /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_lxd_disk1 --wipe
+  lxc exec micro01 -- microceph.ceph config set global mon_allow_pool_size_one true
+  lxc exec micro01 -- microceph.ceph config set global osd_pool_default_size 1
+  lxc exec micro01 -- microceph.ceph osd pool create p1
+
+  # Wait for the .mgr pool to appear.
+  for i in $(seq 0 5); do
+    if lxc exec micro01 -- microceph pool ls | grep -q ".mgr" ; then
+      break
+    fi
+
+    if [ "${i}" = "5" ]; then
+      return 1
+    fi
+
+    sleep 1
+  done
+
+  export MULTI_NODE="no"
+  export SKIP_LOOKUP=1
+  export LOOKUP_IFACE="enp5s0"
+  export SETUP_CEPH="yes"
+  export SETUP_CEPHFS="yes"
+  export CEPH_RETRY_HA="no"
+  export CEPH_OSD_SIZE="yes"
+  export CEPH_FILTER="lxd_disk"
+  microcloud_interactive | lxc exec micro01 -- sh -c "microcloud init > out"
+  export CEPH_FILTER="lxd_disk2"
+  lxc exec micro01 -- microceph.ceph config get mon osd_pool_default_size | grep -q 3
+  lxc exec micro01 -- microceph pool ls | grep ".mgr" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "p1" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_remote" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_meta" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_data" | grep -q " 3 "
+
+  unset MULTI_NODE
+  unset LOOKUP_IFACE
+  unset SKIP_LOOKUP
+  unset CEPH_CLUSTER_NETWORK
+  export SETUP_CEPH="yes"
+  unset SETUP_CEPHFS
+  unset CEPH_RETRY_HA
+  unset CEPH_OSD_SIZE
+  LOOKUP_IFACE="enp5s0" microcloud_join "micro02" &
+  pid1="$!"
+  microcloud_interactive | lxc exec micro01 -- sh -c "microcloud add > out"
+  wait "${pid1}"
+
+  lxc exec micro01 -- microceph.ceph config get mon osd_pool_default_size | grep -q 3
+  lxc exec micro01 -- microceph pool ls | grep ".mgr" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "p1" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_remote" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_meta" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_data" | grep -q " 3 "
+
+  reset_systems 2 4 3
+  echo "existing MicroCeph with OSD (size 3): initially set up 1 OSDs (no question)"
+  lxc exec micro01 -- microceph cluster bootstrap
+  lxc exec micro01 -- microceph disk add /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_lxd_disk1 --wipe
+  lxc exec micro01 -- microceph disk add /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_lxd_disk2 --wipe
+  lxc exec micro01 -- microceph disk add /dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_lxd_disk3 --wipe
+  lxc exec micro01 -- microceph.ceph config set global osd_pool_default_size 3
+  lxc exec micro01 -- microceph.ceph osd pool create p1
+
+  # Wait for the .mgr pool to appear.
+  for i in $(seq 0 10); do
+    if lxc exec micro01 -- microceph pool ls | grep -q ".mgr" ; then
+      break
+    fi
+
+    if [ "${i}" = "10" ]; then
+      return 1
+    fi
+
+    sleep 1
+  done
+
+  export MULTI_NODE="no"
+  export SKIP_LOOKUP=1
+  export LOOKUP_IFACE="enp5s0"
+  export SETUP_CEPH="yes"
+  export SETUP_CEPHFS="yes"
+  export CEPH_RETRY_HA="no"
+  unset CEPH_OSD_SIZE
+  export CEPH_FILTER="lxd_disk4"
+  microcloud_interactive | lxc exec micro01 -- sh -c "microcloud init > out"
+
+  lxc exec micro01 -- microceph.ceph config get mon osd_pool_default_size | grep -q 3
+  lxc exec micro01 -- microceph pool ls | grep ".mgr" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "p1" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_remote" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_meta" | grep -q " 3 "
+  lxc exec micro01 -- microceph pool ls | grep "lxd_cephfs_data" | grep -q " 3 "
+}
+
 
 test_add_services() {
   unset_interactive_vars

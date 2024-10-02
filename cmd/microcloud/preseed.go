@@ -75,6 +75,7 @@ type InitNetwork struct {
 // CephOptions represents the structure of the ceph options in the preseed yaml.
 type CephOptions struct {
 	InternalNetwork string `yaml:"internal_network"`
+	OSDPoolSize     int    `yaml:"osd_pool_size"`
 }
 
 // StorageFilter separates the filters used for local and ceph disks.
@@ -1123,6 +1124,41 @@ func (p *Preseed) Parse(s *service.Handler, c *initConfig) (map[string]InitSyste
 
 			c.systems[name] = system
 		}
+	}
+
+	osdPoolConfig := cephTypes.PoolPut{Pools: []string{}, Size: RecommendedOSDHosts}
+	if s.Services[types.MicroCeph] != nil {
+		osdSize := 0
+		for _, sys := range c.systems {
+			osdSize += len(sys.MicroCephDisks)
+			if osdSize >= 3 {
+				osdSize = 3
+				break
+			}
+		}
+
+		if osdSize > 0 {
+			osdPoolConfig.Size = int64(osdSize)
+		}
+
+		pools, err := s.Services[types.MicroCeph].(*service.CephService).OSDPoolConfig(context.Background(), "", nil)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, pool := range pools {
+			if !shared.ValueInSlice(pool.Pool, []string{".mgr", "lxd_remote", "lxd_cephfs_meta", "lxd_cephfs_data"}) {
+				continue
+			}
+
+			if pool.Size < osdPoolConfig.Size {
+				osdPoolConfig.Pools = append(osdPoolConfig.Pools, pool.Pool)
+			}
+		}
+
+		system := c.systems[s.Name]
+		system.OSDPoolConfig = osdPoolConfig
+		c.systems[s.Name] = system
 	}
 
 	return c.systems, nil
