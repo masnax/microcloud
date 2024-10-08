@@ -43,7 +43,7 @@ var (
 	Bright lipgloss.TerminalColor = lipgloss.AdaptiveColor{Dark: brightWhite, Light: brightBlack}
 
 	// Border represents the default border color used for tables.
-	Border lipgloss.TerminalColor = lipgloss.Color(brightBlack)
+	Border lipgloss.TerminalColor = lipgloss.AdaptiveColor{Dark: brightBlack, Light: black}
 )
 
 // DisableColors globally disables colors.
@@ -104,6 +104,12 @@ type Fmt struct {
 	Color lipgloss.TerminalColor
 	Arg   any
 	Bold  bool
+}
+
+// PrintWarning calls Println but it appends "! Warning:" to the front of the message.
+func PrintWarning(s string) {
+	warning := fmt.Sprintf("%s %s: %s", WarningSymbol(), WarningColor("Warning", true), s)
+	fmt.Println(warning)
 }
 
 // Printf works like fmt.Sprintf except it applies custom coloring to each argument, and the main template body.

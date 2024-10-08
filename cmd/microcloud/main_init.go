@@ -333,8 +333,6 @@ func waitForJoin(sh *service.Handler, clusterSizes map[types.ServiceType]int, pe
 		}
 	}
 
-	fmt.Println(tui.SummarizeResult("Peer %s has joined the cluster", peer))
-
 	return nil
 }
 
@@ -460,7 +458,7 @@ func (c *initConfig) addPeers(sh *service.Handler) (revert.Hook, error) {
 			return nil, err
 		}
 
-		fmt.Printf(" Peer %q has joined the cluster\n", sh.Name)
+		fmt.Println(tui.SummarizeResult("Peer %s has joined the cluster", sh.Name))
 	}
 
 	for peer, cfg := range joinConfig {
@@ -474,7 +472,7 @@ func (c *initConfig) addPeers(sh *service.Handler) (revert.Hook, error) {
 			return nil, err
 		}
 
-		fmt.Printf(" Peer %q has joined the cluster\n", peer)
+		fmt.Println(tui.SummarizeResult("Peer %s has joined the cluster", peer))
 	}
 
 	cleanup := reverter.Clone().Fail
