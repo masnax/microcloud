@@ -752,10 +752,12 @@ func (p *Preseed) Parse(s *service.Handler, c *initConfig) (map[string]InitSyste
 			c.systems[peer] = system
 		}
 
-		// TODO: call `s.Services[types.MicroOVN].(*service.OVNService).SupportsFeature(context.Background(), "custom_encapsulation_ip")`
-		// when MicroCloud will be updated with microcluster/v2
-		// Check the preseed underlay network configuration against the available ifaces.
-		if ovnUnderlayNeeded {
+		supportsUnderlay, err := s.Services[types.MicroOVN].(*service.OVNService).SupportsFeature(context.Background(), "custom_encapsulation_ip")
+		if err != nil {
+			return nil, err
+		}
+
+		if ovnUnderlayNeeded && supportsUnderlay {
 			assignedSystems := map[string]bool{}
 			for _, sys := range p.Systems {
 				if sys.UnderlayIP == "" {

@@ -1076,12 +1076,18 @@ func (c *initConfig) askOVNNetwork(sh *service.Handler) error {
 		}
 	}
 
-	canOVNUnderlay := true
-	for peer, system := range c.systems {
-		if len(c.state[system.ServerInfo.Name].AvailableOVNInterfaces) == 0 {
-			fmt.Printf("Not enough interfaces available on %s to create an underlay network, skipping\n", peer)
-			canOVNUnderlay = false
-			break
+	canOVNUnderlay, err := sh.Services[types.MicroOVN].(*service.OVNService).SupportsFeature(context.Background(), "custom_encapsulation_ip")
+	if err != nil {
+		return err
+	}
+
+	if canOVNUnderlay {
+		for peer, system := range c.systems {
+			if len(c.state[system.ServerInfo.Name].AvailableOVNInterfaces) == 0 {
+				fmt.Printf("Not enough interfaces available on %s to create an underlay network, skipping\n", peer)
+				canOVNUnderlay = false
+				break
+			}
 		}
 	}
 
