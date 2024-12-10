@@ -22,7 +22,7 @@ type OVNService struct {
 
 	name    string
 	address string
-	port    int
+	port    int64
 }
 
 // NewOVNService creates a new MicroOVN service with a client attached.
@@ -55,7 +55,7 @@ func (s OVNService) Client() (*client.Client, error) {
 
 // Bootstrap bootstraps the MicroOVN daemon on the default port.
 func (s OVNService) Bootstrap(ctx context.Context) error {
-	err := s.m.NewCluster(s.name, util.CanonicalNetworkAddress(s.address, s.port), 2*time.Minute)
+	err := s.m.NewCluster(s.name, util.CanonicalNetworkAddress(s.address, s.port), nil, 2*time.Minute)
 	if err != nil {
 		return err
 	}
@@ -88,7 +88,7 @@ func (s OVNService) IssueToken(ctx context.Context, peer string) (string, error)
 
 // Join joins a cluster with the given token.
 func (s OVNService) Join(ctx context.Context, joinConfig JoinConfig) error {
-	return s.m.JoinCluster(s.name, util.CanonicalNetworkAddress(s.address, s.port), joinConfig.Token, 5*time.Minute)
+	return s.m.JoinCluster(s.name, util.CanonicalNetworkAddress(s.address, s.port), joinConfig.Token, nil, 5*time.Minute)
 }
 
 // ClusterMembers returns a map of cluster member names and addresses.
@@ -127,6 +127,6 @@ func (s OVNService) Address() string {
 }
 
 // Port returns the port of this Service instance.
-func (s OVNService) Port() int {
+func (s OVNService) Port() int64 {
 	return s.port
 }

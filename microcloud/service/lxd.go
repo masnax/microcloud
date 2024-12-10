@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	lxd "github.com/canonical/lxd/client"
+	"github.com/canonical/lxd/client"
 	"github.com/canonical/lxd/lxd/util"
 	"github.com/canonical/lxd/shared"
 	"github.com/canonical/lxd/shared/api"
@@ -28,7 +28,7 @@ type LXDService struct {
 
 	name    string
 	address string
-	port    int
+	port    int64
 }
 
 // NewLXDService creates a new LXD service with a client attached.
@@ -69,7 +69,7 @@ func (s LXDService) Client(ctx context.Context, secret string) (lxd.InstanceServ
 }
 
 // remoteClient returns an https client for the given address:port.
-func (s LXDService) remoteClient(secret string, address string, port int) (lxd.InstanceServer, error) {
+func (s LXDService) remoteClient(secret string, address string, port int64) (lxd.InstanceServer, error) {
 	c, err := s.m.RemoteClient(util.CanonicalNetworkAddress(address, port))
 	if err != nil {
 		return nil, err
@@ -257,7 +257,7 @@ func (s LXDService) Address() string {
 }
 
 // Port returns the port of this Service instance.
-func (s LXDService) Port() int {
+func (s LXDService) Port() int64 {
 	return s.port
 }
 
